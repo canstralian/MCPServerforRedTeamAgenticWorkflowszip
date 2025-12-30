@@ -6,7 +6,7 @@ This is a Model Context Protocol (MCP) server for red team agentic workflows. It
 
 **Purpose:** Enable LLMs to orchestrate red team security assessments through structured tool calls.
 
-**Current State:** Fully functional MCP server with 24 tools across 4 domains.
+**Current State:** Fully functional MCP server with 24 tools organized by MITRE ATT&CK workflow stages.
 
 ## LLM Compatibility
 
@@ -37,65 +37,78 @@ The server uses **StdioServerTransport** for communication:
 }
 ```
 
-## Server Functions (24 Tools)
+## Tools by Workflow Stage (MITRE ATT&CK Aligned)
 
-### Agent Management (6 tools)
-Manage red team agents with different specializations:
+### 1. PLANNING (6 tools)
+Setup agents, operations, and targets before engagement begins.
 
 | Tool | Description |
 |------|-------------|
-| `create_agent` | Create a new agent with type (reconnaissance, exploitation, etc.) and capabilities |
+| `create_agent` | Create a new agent with type and capabilities |
 | `list_agents` | List all agents, optionally filtered by status |
 | `get_agent` | Get detailed info about a specific agent |
 | `update_agent` | Update agent properties |
-| `activate_agent` | Set agent status to active |
-| `delete_agent` | Remove an agent |
+| `create_operation` | Create a new operation targeting a system |
+| `create_target` | Define a new target (web app, network, host, API, database, cloud) |
 
-**Agent Types:** reconnaissance, exploitation, post_exploitation, persistence, lateral_movement, command_control
-
-### Operation Management (7 tools)
-Create and manage security assessment operations aligned with MITRE ATT&CK:
+### 2. RECONNAISSANCE (5 tools)
+Gather intelligence on targets and monitor operation progress.
 
 | Tool | Description |
 |------|-------------|
-| `create_operation` | Create a new operation targeting a system |
 | `list_operations` | List operations with status/phase filters |
 | `get_operation` | Get operation details including findings |
-| `update_operation` | Update operation phase or details |
-| `start_operation` | Begin execution of an operation |
-| `complete_operation` | Mark operation as completed |
-| `delete_operation` | Remove an operation |
-
-**Operation Phases (MITRE ATT&CK):** planning, reconnaissance, initial_access, execution, persistence, privilege_escalation, defense_evasion, credential_access, discovery, lateral_movement, collection, exfiltration, impact
-
-### Target Management (6 tools)
-Track and manage assessment targets:
-
-| Tool | Description |
-|------|-------------|
-| `create_target` | Define a new target (web app, network, host, API, database, cloud) |
 | `list_targets` | List all targets with optional type filter |
 | `get_target` | Get target details including vulnerabilities |
 | `update_target` | Update target information |
+
+### 3. EXPLOITATION (4 tools)
+Execute attacks, activate agents, and record vulnerabilities.
+
+| Tool | Description |
+|------|-------------|
+| `activate_agent` | Set agent status to active for deployment |
+| `start_operation` | Begin execution of an operation |
+| `update_operation` | Update operation phase or details |
 | `add_vulnerability` | Record a vulnerability on a target |
-| `delete_target` | Remove a target |
 
-**Target Types:** web_application, network, host, api, database, cloud_infrastructure
-
-### Analysis & Reporting (5 tools)
-Record findings and generate reports:
+### 4. POST-EXPLOITATION (1 tool)
+Document findings during active exploitation.
 
 | Tool | Description |
 |------|-------------|
 | `add_finding` | Record a security finding with severity, evidence, and mitigation |
+
+### 5. REPORTING (8 tools)
+Generate reports, review findings, and clean up resources.
+
+| Tool | Description |
+|------|-------------|
 | `list_findings` | List findings filtered by operation, agent, or severity |
 | `get_finding` | Get detailed finding information |
 | `generate_report` | Generate comprehensive operation report |
 | `get_statistics` | Get overall metrics across all operations |
+| `complete_operation` | Mark operation as completed |
+| `delete_operation` | Remove an operation |
+| `delete_target` | Remove a target |
+| `delete_agent` | Remove an agent |
 
-**Finding Types:** vulnerability, misconfiguration, weak_credential, exposed_data, privilege_escalation, lateral_movement
+## Enums and Types
 
-**Severity Levels:** critical, high, medium, low, info
+### Agent Types
+`reconnaissance`, `exploitation`, `post_exploitation`, `persistence`, `lateral_movement`, `command_control`
+
+### Operation Phases (MITRE ATT&CK)
+`planning`, `reconnaissance`, `initial_access`, `execution`, `persistence`, `privilege_escalation`, `defense_evasion`, `credential_access`, `discovery`, `lateral_movement`, `collection`, `exfiltration`, `impact`
+
+### Target Types
+`web_application`, `network`, `host`, `api`, `database`, `cloud_infrastructure`
+
+### Finding Types
+`vulnerability`, `misconfiguration`, `weak_credential`, `exposed_data`, `privilege_escalation`, `lateral_movement`
+
+### Severity Levels
+`critical`, `high`, `medium`, `low`, `info`
 
 ## Project Architecture
 
@@ -107,7 +120,7 @@ src/
 ├── store/
 │   └── index.ts          # In-memory data store for agents, operations, targets, findings
 ├── tools/
-│   ├── index.ts          # Tool registration hub
+│   ├── index.ts          # Tool registration hub with workflow stage mapping
 │   ├── agent-tools.ts    # Agent CRUD tools
 │   ├── operation-tools.ts # Operation lifecycle tools
 │   ├── target-tools.ts   # Target management tools
@@ -145,10 +158,10 @@ npm run start
 
 ## Recent Changes
 
+- **2025-12-30:** Reorganized tools by MITRE ATT&CK workflow stages (planning → recon → exploitation → post-exploitation → reporting)
+- **2025-12-30:** Added workflow stage metadata to all tool definitions
+- **2025-12-30:** Tool descriptions now include stage prefixes for easy identification
 - **2025-12-30:** Implemented full tool suite (24 tools) for agents, operations, targets, and analysis
-- **2025-12-30:** Added MITRE ATT&CK aligned operation phases
-- **2025-12-30:** Integrated report generation with recommendations
-- **2025-12-30:** Documented LLM compatibility and MCP integration
 
 ## User Preferences
 
@@ -156,3 +169,4 @@ npm run start
 - Winston for logging
 - Zod for schema validation
 - UUID for unique identifiers
+- Tools organized by MITRE ATT&CK workflow stages

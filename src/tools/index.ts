@@ -8,16 +8,94 @@ import { operationTools, handleOperationTool } from './operation-tools.js';
 import { targetTools, handleTargetTool } from './target-tools.js';
 import { analysisTools, handleAnalysisTool } from './analysis-tools.js';
 
-const allTools = [
-  ...agentTools,
-  ...operationTools,
-  ...targetTools,
-  ...analysisTools,
+export enum WorkflowStage {
+  PLANNING = 'planning',
+  RECONNAISSANCE = 'reconnaissance',
+  EXPLOITATION = 'exploitation',
+  POST_EXPLOITATION = 'post_exploitation',
+  REPORTING = 'reporting',
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+  stage: WorkflowStage;
+}
+
+const toolStageMapping: Record<string, WorkflowStage> = {
+  create_agent: WorkflowStage.PLANNING,
+  list_agents: WorkflowStage.PLANNING,
+  get_agent: WorkflowStage.PLANNING,
+  update_agent: WorkflowStage.PLANNING,
+  activate_agent: WorkflowStage.EXPLOITATION,
+  delete_agent: WorkflowStage.REPORTING,
+  
+  create_operation: WorkflowStage.PLANNING,
+  list_operations: WorkflowStage.RECONNAISSANCE,
+  get_operation: WorkflowStage.RECONNAISSANCE,
+  update_operation: WorkflowStage.EXPLOITATION,
+  start_operation: WorkflowStage.EXPLOITATION,
+  complete_operation: WorkflowStage.REPORTING,
+  delete_operation: WorkflowStage.REPORTING,
+  
+  create_target: WorkflowStage.PLANNING,
+  list_targets: WorkflowStage.RECONNAISSANCE,
+  get_target: WorkflowStage.RECONNAISSANCE,
+  update_target: WorkflowStage.RECONNAISSANCE,
+  add_vulnerability: WorkflowStage.EXPLOITATION,
+  delete_target: WorkflowStage.REPORTING,
+  
+  add_finding: WorkflowStage.POST_EXPLOITATION,
+  list_findings: WorkflowStage.REPORTING,
+  get_finding: WorkflowStage.REPORTING,
+  generate_report: WorkflowStage.REPORTING,
+  get_statistics: WorkflowStage.REPORTING,
+};
+
+function addStageToTools(tools: Array<{ name: string; description: string; inputSchema: unknown }>): ToolDefinition[] {
+  return tools.map(tool => ({
+    ...tool,
+    inputSchema: tool.inputSchema as ToolDefinition['inputSchema'],
+    stage: toolStageMapping[tool.name] || WorkflowStage.PLANNING,
+  }));
+}
+
+const allToolsWithStages: ToolDefinition[] = [
+  ...addStageToTools(agentTools),
+  ...addStageToTools(operationTools),
+  ...addStageToTools(targetTools),
+  ...addStageToTools(analysisTools),
 ];
+
+const toolsByStage = {
+  [WorkflowStage.PLANNING]: allToolsWithStages.filter(t => t.stage === WorkflowStage.PLANNING),
+  [WorkflowStage.RECONNAISSANCE]: allToolsWithStages.filter(t => t.stage === WorkflowStage.RECONNAISSANCE),
+  [WorkflowStage.EXPLOITATION]: allToolsWithStages.filter(t => t.stage === WorkflowStage.EXPLOITATION),
+  [WorkflowStage.POST_EXPLOITATION]: allToolsWithStages.filter(t => t.stage === WorkflowStage.POST_EXPLOITATION),
+  [WorkflowStage.REPORTING]: allToolsWithStages.filter(t => t.stage === WorkflowStage.REPORTING),
+};
+
+export function getToolsByStage(stage: WorkflowStage): ToolDefinition[] {
+  return toolsByStage[stage];
+}
+
+export function getAllToolsOrganized(): Record<WorkflowStage, ToolDefinition[]> {
+  return toolsByStage;
+}
 
 export function registerTools(server: Server): void {
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: allTools };
+    const toolsWithMetadata = allToolsWithStages.map(tool => ({
+      name: tool.name,
+      description: `[${tool.stage.toUpperCase()}] ${tool.description}`,
+      inputSchema: tool.inputSchema,
+    }));
+    return { tools: toolsWithMetadata };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -40,7 +118,4 @@ export function registerTools(server: Server): void {
   });
 }
 
-export { registerAgentTools } from './agent-tools.js';
-export { registerOperationTools } from './operation-tools.js';
-export { registerTargetTools } from './target-tools.js';
-export { registerAnalysisTools } from './analysis-tools.js';
+export { WorkflowStage as Stage };
