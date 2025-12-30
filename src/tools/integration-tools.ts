@@ -1,6 +1,3 @@
-import { config } from '../config/index.js';
-import { logger } from '../utils/logger.js';
-
 interface ToolResponse {
   content: Array<{ type: string; text: string }>;
 }
@@ -396,83 +393,6 @@ export const integrationTools = [
     },
   },
 ];
-
-async function virusTotalRequest(endpoint: string): Promise<unknown> {
-  const apiKey = process.env.VIRUSTOTAL_API_KEY;
-  if (!apiKey) {
-    throw new Error('VIRUSTOTAL_API_KEY not configured. Please add it to your secrets.');
-  }
-
-  const response = await fetch(`https://www.virustotal.com/api/v3/${endpoint}`, {
-    headers: {
-      'x-apikey': apiKey,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`VirusTotal API error: ${response.status} - ${error}`);
-  }
-
-  return response.json();
-}
-
-async function otxRequest(endpoint: string): Promise<unknown> {
-  const apiKey = process.env.OTX_API_KEY;
-  if (!apiKey) {
-    throw new Error('OTX_API_KEY not configured. Please add it to your secrets.');
-  }
-
-  const response = await fetch(`https://otx.alienvault.com/api/v1/${endpoint}`, {
-    headers: {
-      'X-OTX-API-KEY': apiKey,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`AlienVault OTX API error: ${response.status} - ${error}`);
-  }
-
-  return response.json();
-}
-
-const HACKERONE_ERROR_MESSAGES: Record<number, string> = {
-  400: 'Bad Request - Request does not conform with the specification',
-  401: 'Unauthorized - Invalid API credentials. Ensure HACKERONE_API_KEY is in format username:token',
-  403: 'Forbidden - API token does not grant access to this resource',
-  404: 'Not Found - The requested resource does not exist',
-  406: 'Not Acceptable - Invalid response format requested',
-  422: 'Unprocessable Entity - Request syntax is correct but could not be processed',
-  429: 'Too Many Requests - Rate limit exceeded. Read: 600/min, Write: 25/20sec',
-  500: 'Internal Server Error - HackerOne server error',
-  503: 'Service Unavailable - Check status at hackeronestatus.com',
-};
-
-async function hackerOneRequest(endpoint: string): Promise<unknown> {
-  const apiKey = process.env.HACKERONE_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('HACKERONE_API_KEY not configured. Please add it to your secrets in the format: username:token');
-  }
-
-  const auth = Buffer.from(apiKey).toString('base64');
-  
-  const response = await fetch(`https://api.hackerone.com/v1/${endpoint}`, {
-    headers: {
-      'Authorization': `Basic ${auth}`,
-      'Accept': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const errorMessage = HACKERONE_ERROR_MESSAGES[response.status] || `Unknown error`;
-    const errorBody = await response.text();
-    throw new Error(`HackerOne API error (${response.status}): ${errorMessage}. Details: ${errorBody}`);
-  }
-
-  return response.json();
-}
 
 export function handleIntegrationTool(name: string, args: Record<string, unknown>): ToolResponse | null {
   switch (name) {
