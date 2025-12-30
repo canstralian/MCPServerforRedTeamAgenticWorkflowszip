@@ -1,0 +1,104 @@
+Alright. If you’re building an MCP server meant to support “agentic red team” work, the winning move is to treat it like a mission-control runtime: strict scope enforcement, reproducible evidence capture, low-impact by default, and deliberate escalation gates. The “tools, workflows, and skills” then become a clean stack: orchestration primitives at the bottom, assessment capabilities in the middle, and reasoning/decision skills at the top.
+
+TOOLS (MCP “capabilities” you expose)
+	1.	Governance and safety primitives (these are non-negotiable)
+
+	•	scope_manager: accepts an explicit scope manifest (CIDRs/domains/apps/accounts), validates every tool call against it, blocks anything outside scope, logs denials.
+	•	rules_engine: rate limits, concurrency caps, “low impact” defaults, kill-switch, maintenance windows.
+	•	approval_gate: for disruptive actions (credential spraying, high-rate scans, exploit attempts, destructive payloads) require a human “approve” token.
+	•	evidence_logger: tamper-evident run directory (hash chain), stores every request/response, tool versions, timestamps, environment metadata.
+	•	secrets_vault_bridge: pulls creds/tokens from an approved store; forbids printing secrets into logs; redacts automatically.
+	•	data_classifier: tags outputs (public/internal/secret), prevents exfil-style actions (e.g., uploading raw dumps) unless explicitly approved.
+
+	2.	Target understanding and inventory
+
+	•	asset_discovery: import assets from CMDB, cloud inventories, EDR, vuln scanners (read-only connectors).
+	•	dns_tls_inspector: DNS records, certificate chain/expiry, cipher suite summary (safe, low-impact).
+	•	http_fingerprint: header/cookie/security header inventory, framework hints (rate-limited).
+	•	sbom_ingestor: parse SBOMs / dependency lockfiles for known-risk packages (defensive angle, high value).
+
+	3.	Security testing interfaces (wrap common tools, don’t expose raw shell by default)
+
+	•	port_probe (safe mode): tiny, throttled connectivity checks; optional “scan” mode behind approval.
+	•	vuln_scan_adapter: “ask scanner for findings” rather than “scan the internet.” Prefer importing existing scanner results over generating new ones.
+	•	webapp_tester: authenticated crawling (only with provided test creds), config checks, common misconfig detection (no exploit payload libraries unless gated).
+	•	auth_policy_auditor: password/MFA/session policy evaluation from IdP settings exports.
+	•	cloud_posture_auditor: reads cloud configs (IAM, storage policies, SG/NACL, logging) and flags risky patterns.
+	•	repo_auditor: static checks for secrets, risky configs, CI/CD permissions, dependency drift.
+
+	4.	Exploitation and “active” actions (make these explicit, gated, and narrow)
+
+	•	safe_poc_runner: runs only pre-approved PoCs in a sandbox with egress control; cannot target out-of-scope.
+	•	controlled_credential_tester: extremely bounded checks (single account, single endpoint, low rate) with mandatory approval and explicit justification text.
+	•	lateral_simulator: “simulation mode” that models likely paths using graph reasoning and collected permissions, without actually performing actions (great compromise).
+
+	5.	Reporting and communication
+
+	•	finding_builder: turns evidence into findings with severity, repro outline (non-weaponized), impact, recommendations, references.
+	•	mitre_mapper: maps observed techniques to ATT&CK for structured narratives.
+	•	report_generator: outputs doc/PDF/Markdown with appendices linking to evidence hashes and run IDs.
+	•	remediation_planner: proposes fixes, owners, timelines, and validation steps.
+
+WORKFLOWS (what the server should make easy)
+Think in phases, each producing artifacts. The workflow engine should enforce “no phase skipping” unless explicitly overridden.
+
+Workflow A: External perimeter assessment (low impact by default)
+	•	Intake → Scope manifest → Passive recon (DNS/TLS/HTTP headers) → Asset normalization → Import vuln scanner results (preferred) → Targeted verification (only on flagged hosts, throttled) → Findings → Report.
+Key artifacts: scope.json, asset_graph.json, evidence index, findings.md.
+
+Workflow B: Authenticated web app assessment
+	•	Intake (test accounts + roles) → Session handling rules → Crawl map → Security controls inventory (headers, cookies, auth flows) → Misconfig checks → Targeted tests (gated if potentially disruptive) → Findings w/ request/response evidence.
+Key artifacts: auth_context.json, route_map.json, evidence traces.
+
+Workflow C: Cloud/IAM exposure review (high leverage, minimal “noise”)
+	•	Import cloud config snapshots → Model effective permissions → Identify toxic combinations (admin paths, privilege escalation possibilities) → Validate with read-only calls → Findings + least-privilege remediation plan.
+Key artifacts: iam_graph.json, policy_analysis.json.
+
+Workflow D: CI/CD and supply-chain posture
+	•	Repo ingestion → Secret scanning → Workflow permissions review → Dependency risk review (SBOM/lockfiles) → Build integrity checks (signing, provenance) → Findings.
+Key artifacts: repo_risk_summary.json, secrets_redaction_report.json.
+
+Workflow E: “Attack path” simulation (agentic sweet spot)
+	•	Build identity/asset graph → Annotate with exposures and permissions → Compute plausible paths to crown jewels → Prioritize 1–3 high-probability paths → Optional human-approved validation steps → Report as narrative.
+Key artifacts: attack_paths.json, assumptions.md, validation_results/.
+
+SKILLS (what the agent needs to be good at)
+	1.	Scoping discipline as a first-class skill
+
+	•	Convert human scope into machine-enforceable constraints.
+	•	Detect ambiguous scope and refuse to act until resolved.
+	•	Maintain a “scope checksum” attached to every action.
+
+	2.	Hypothesis-driven testing (keeps noise low)
+
+	•	Turn scanner hints into hypotheses (“If X, then Y is possible”) and test the smallest thing that confirms/denies it.
+	•	Prefer read-only validation paths before active actions.
+
+	3.	Risk estimation and escalation control
+
+	•	Pre-flight risk scoring per tool call: impact, detectability, reversibility.
+	•	Auto-select safest method; require approval when crossing thresholds.
+
+	4.	Evidence quality and reproducibility
+
+	•	Capture just enough evidence to prove: “what you saw, where, when, with what inputs.”
+	•	Hash and index evidence. Make reports traceable to run IDs.
+
+	5.	Graph reasoning and path planning
+
+	•	Maintain an evolving asset/identity graph.
+	•	Re-plan when new constraints appear (e.g., WAF blocks, creds invalid).
+	•	Choose next steps based on expected information gain per unit risk.
+
+	6.	Natural-language compression into executive signal
+
+	•	Translate technical evidence into business impact and remediation priorities.
+	•	Avoid weaponized detail; keep “repro” safe but verifiable.
+
+SERVER DESIGN IDEAS THAT MAKE THIS “AGENTIC”
+	•	A tool schema that requires “justification”, “expected outcome”, and “rollback/stop condition” on every active step.
+	•	A run directory per engagement with immutable logs and a manifest of tool versions.
+	•	Deterministic replays: the agent can rerun a workflow against stored evidence without touching targets.
+	•	Policy-as-code for scope, rate limits, and gating (so you can audit the agent itself).
+
+If you tell me your intended operating mode (purely passive + imports, or “active validation allowed with approvals”), I can propose a concrete MCP tool namespace design (tool names, input/output JSON schemas, required safety fields) and a reference workflow DAG that an orchestrator can execute cleanly.

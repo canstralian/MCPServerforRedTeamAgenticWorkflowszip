@@ -1,0 +1,427 @@
+Here’s a concrete MCP tool spec for “active validation allowed with approvals.” It’s written so you can implement it as a real server contract (tool schemas + policy gates), not just vibes.
+
+SYSTEM MODEL AND INVARIANTS
+
+The MCP server is a controlled execution plane. Every tool call is wrapped in a mandatory operation envelope, and the server runs a fixed preflight pipeline:
+	1.	scope check (hard deny out of scope)
+	2.	policy evaluation (rate limits, caps, allowed methods, time windows)
+	3.	risk scoring (lane assignment)
+	4.	approval verification (if required)
+	5.	evidence/audit pre-commit (append request metadata to hash chain)
+	6.	tool execution
+	7.	evidence storage (artifacts + response)
+	8.	postflight telemetry update (adaptive throttling, anomaly triggers)
+
+Hard invariants:
+	•	No tool executes without an engagement_id, run_id, scope_id.
+	•	Every execution produces an audit record and evidence artifact pointers.
+	•	Active validation beyond Lane 0 requires either strict constraints or explicit approval token, depending on lane rules.
+
+COMMON ENVELOPE (REQUIRED FOR ALL TOOL CALLS)
+
+This is the “operation context” your server requires for every tool invocation.
+
+{
+  "meta": {
+    "engagement_id": "eng-2025-001",
+    "run_id": "run-20251231-001",
+    "scope_id": "scope-abc123",
+    "operator": { "id": "op-esteban", "role": "lead" },
+    "client": { "name": "agent-orchestrator", "version": "1.0.0" },
+    "timestamp": "2025-12-31T10:02:00+10:00"
+  },
+  "intent": {
+    "type": "intel|validate|report|admin",
+    "justification": "Why this action now",
+    "expected_outcome": "What will be proven/learned",
+    "stop_condition": "When to halt immediately",
+    "ticket": "optional-change-or-assessment-id"
+  },
+  "constraints": {
+    "max_requests": 20,
+    "rate_limit_rps": 0.2,
+    "timeout_ms": 8000,
+    "concurrency": 1,
+    "methods_allowed": ["GET", "HEAD"],
+    "max_payload_kb": 64,
+    "allow_state_change": false,
+    "data_handling": "redact-secrets"
+  },
+  "approval": {
+    "token": "optional",
+    "required_by_policy": false
+  }
+}
+
+Notes:
+	•	constraints are enforceable, not advisory. If the tool tries to exceed them, the server halts the operation.
+	•	stop_condition is used by the server too: if telemetry indicates you hit it (WAF-like blocks, lockout risk, error spikes), the server stops even if the tool didn’t.
+
+COMMON RESULT SHAPE
+
+{
+  "status": "ok|blocked|error|halted",
+  "reason": "human-readable summary",
+  "lane": "L0|L1|L2",
+  "policy": {
+    "scope_ok": true,
+    "approval_required": false,
+    "constraints_effective": { "max_requests": 10, "rate_limit_rps": 0.1 }
+  },
+  "artifacts": [
+    { "artifact_id": "art-001", "type": "http_trace", "sha256": "..." }
+  ],
+  "telemetry": {
+    "requests_made": 7,
+    "errors": 0,
+    "waf_suspected": false,
+    "lockout_risk": "low|medium|high",
+    "latency_ms_p95": 540
+  },
+  "data": {}
+}
+
+ERROR CODES (RECOMMENDED)
+
+Return status plus a structured error when applicable:
+	•	SCOPE_DENIED (target out of scope)
+	•	POLICY_DENIED (tool/action disallowed)
+	•	APPROVAL_REQUIRED (no token)
+	•	APPROVAL_INVALID (token invalid/expired/mismatched)
+	•	CONSTRAINT_VIOLATION (rate/requests/methods exceeded)
+	•	TELEMETRY_HALT (stop due to safety triggers)
+	•	UPSTREAM_ERROR (target/system error)
+	•	INTERNAL_ERROR (server fault)
+
+NAMESPACES AND TOOLS
+	1.	governance.*
+
+1.1 governance.scope.load
+Purpose: load a scope manifest for an engagement/run.
+Input:
+
+{
+  "meta": { "...": "..." },
+  "scope": {
+    "targets": {
+      "domains": ["example.com", "*.example.com"],
+      "cidrs": ["203.0.113.0/24"],
+      "urls": ["https://app.example.com"],
+      "cloud_accounts": ["aws:123456789012"],
+      "repos": ["org/repo1"]
+    },
+    "exclusions": {
+      "domains": ["admin.example.com"],
+      "cidrs": ["203.0.113.10/32"],
+      "paths": ["/logout", "/delete"]
+    },
+    "time_window": { "start": "2025-12-31T00:00:00+10:00", "end": "2026-01-10T23:59:59+10:00" }
+  }
+}
+
+Output: { "scope_id": "...", "scope_hash": "..." }
+
+1.2 governance.scope.validate_call
+Purpose: check whether proposed targets/actions are in scope.
+Input: { "meta": {...}, "proposed": { "targets": [...], "action_class": "validate.http.request" } }
+Output: { "scope_ok": true, "denied": [], "notes": [] }
+
+1.3 governance.policy.evaluate
+Purpose: enforce org rules and rewrite constraints (tighten).
+Input: { "meta": {...}, "intent": {...}, "constraints": {...}, "action_class": "...", "targets": [...] }
+Output:
+
+{
+  "allowed": true,
+  "lane": "L0|L1|L2",
+  "approval_required": true,
+  "constraints_effective": { "...": "..." },
+  "deny_reason": null
+}
+
+1.4 governance.risk.score
+Purpose: compute risk score + lane suggestion based on action and context.
+Output includes impact/detectability/reversibility/blast_radius and lane.
+
+1.5 governance.kill_switch.get/set
+Purpose: immediate global halt (admin).
+Server behavior: if kill switch on, all tools return status=blocked except admin tools.
+	2.	approvals.*
+
+2.1 approvals.request.create
+Purpose: create a human approval request.
+Input:
+
+{
+  "meta": {...},
+  "request": {
+    "action_class": "validate.vuln.verify",
+    "targets": ["https://app.example.com/login"],
+    "reason": "Verify suspected auth bypass with minimal requests",
+    "proposed_constraints": {
+      "max_requests": 25,
+      "rate_limit_rps": 0.1,
+      "methods_allowed": ["GET", "POST"],
+      "allow_state_change": false
+    },
+    "risk_summary": { "impact": "medium", "detectability": "medium", "reversibility": "easy" },
+    "stop_condition": "Stop on lockout indicators or WAF responses"
+  }
+}
+
+Output: { "request_id": "apr-00091", "status": "pending" }
+
+2.2 approvals.request.get/list
+Purpose: check approval state.
+Output includes reviewer, decision, timestamps, notes.
+
+2.3 approvals.token.issue
+Purpose: issue a short-lived token binding target + action + constraints.
+Token claims (conceptual):
+	•	engagement_id, run_id
+	•	action_class
+	•	targets (exact match or pattern)
+	•	constraints_effective
+	•	use_limit (1 or N)
+	•	expires_at
+	•	approver_id
+
+2.4 approvals.token.verify
+Purpose: verify token at preflight.
+Output: { "valid": true, "claims": {...} }
+	3.	evidence.*
+
+3.1 evidence.run.init
+Purpose: create run directory, manifest, hash chain seed.
+Output: { "run_id": "...", "evidence_root": "runs/eng-.../run-.../", "manifest_artifact_id": "art-000" }
+
+3.2 evidence.audit.append
+Purpose: append an audit event (request metadata, policy decision, hashes).
+Event types:
+	•	OP_PREFLIGHT
+	•	OP_EXEC_START
+	•	OP_EXEC_END
+	•	OP_HALTED
+	•	ARTIFACT_STORED
+
+3.3 evidence.store
+Purpose: store an artifact with automatic redaction and hashing.
+Input:
+
+{
+  "meta": {...},
+  "artifact": {
+    "type": "http_trace|dns_result|tls_report|finding|workflow_graph|raw",
+    "content_encoding": "json|text|binary",
+    "content": { "...": "..." },
+    "redaction": { "enabled": true, "ruleset": "default" }
+  }
+}
+
+Output: { "artifact_id": "art-0123", "sha256": "...", "size_bytes": 12345 }
+
+3.4 evidence.index.get
+Purpose: list stored artifacts and their types/hashes.
+
+3.5 evidence.hashchain.verify
+Purpose: verify audit integrity.
+	4.	intel.* (passive, typically Lane 0)
+
+4.1 intel.dns.resolve
+Input: { "meta": {...}, "query": { "name": "app.example.com", "type": "A|AAAA|CNAME|TXT|MX" } }
+Output: results + artifact pointers.
+
+4.2 intel.tls.inspect
+Input: { "meta": {...}, "target": { "host": "app.example.com", "port": 443 } }
+Output: cert chain, expiry, cipher suite summary.
+
+4.3 intel.http.fingerprint
+Input: { "meta": {...}, "target": { "url": "https://app.example.com/" } }
+Output: headers, security headers, cookie flags, framework hints (clearly labeled as inference when not certain).
+
+4.4 intel.asset.import
+Purpose: import existing scanner/CMDB/cloud inventory results (preferred to re-scanning).
+Input supports “connector source” or file upload references.
+Output: normalized asset list + findings references, plus artifact.
+	5.	validate.* (active validation with approvals)
+
+5.1 validate.connectivity.check (Lane 0)
+	•	Single host/port, tiny attempt count.
+	•	No approval by default.
+
+5.2 validate.service.banner (Lane 0/1 depending on protocol)
+	•	Minimal handshake; strict request caps.
+
+5.3 validate.http.request (Lane 1, sometimes L2)
+Input:
+
+{
+  "meta": {...},
+  "request": {
+    "url": "https://app.example.com/path",
+    "method": "GET",
+    "headers": { "User-Agent": "MCP-Validator/1.0" },
+    "query": { "a": "b" },
+    "body": null,
+    "follow_redirects": false
+  }
+}
+
+Policy triggers:
+	•	If method is POST/PUT/DELETE or allow_state_change=true → Lane 2 (approval required).
+	•	If max_requests > threshold or rate_limit_rps > threshold → Lane 2.
+
+Output includes a full trace artifact: request, response headers, status, timing, redaction applied.
+
+5.4 validate.auth.session_check (Lane 1/2)
+Purpose: verify login/session properties using provided test creds.
+Rules:
+	•	No guessing creds. No brute force. No multi-password attempts.
+	•	Any “try multiple accounts quickly” pushes to Lane 2 with explicit approval and lockout safeguards.
+
+Input includes credential reference (from a vault handle), never raw password in logs:
+
+{
+  "meta": {...},
+  "auth": {
+    "credential_ref": "vault://eng-2025-001/test_user_1",
+    "login_url": "https://app.example.com/login",
+    "success_indicator": "cookie:sessionid"
+  }
+}
+
+5.5 validate.vuln.verify (Lane 2 by default)
+Purpose: confirm a suspected issue with minimal, non-destructive checks.
+Key rule: this tool is for “verify”, not “exploit.” If a check could materially alter state or availability, it must be explicitly stated and separately approved.
+
+Input:
+
+{
+  "meta": {...},
+  "finding_ref": "imported:F-102",
+  "targets": ["https://app.example.com/login"],
+  "verification_plan": [
+    { "step": "Send baseline request", "method": "GET", "path": "/login" },
+    { "step": "Send bounded test variant", "method": "POST", "path": "/login", "body_template": "..." }
+  ]
+}
+
+Server enforces:
+	•	step count <= N
+	•	payload size <= max_payload_kb
+	•	explicit allow_state_change must be false unless separately approved
+
+5.6 validate.cloud.read (Lane 1/2 depending on API class)
+Purpose: read-only validation of cloud configuration.
+Policy examples:
+	•	listing public buckets might be Lane 1
+	•	reading secrets metadata might be Lane 2 (org-dependent)
+
+	6.	report.*
+
+6.1 report.finding.create/update
+Input includes evidence links (artifact IDs), severity, impact, remediation.
+
+6.2 report.mitre.map
+Maps observed behaviors to ATT&CK (optional, helps structure).
+
+6.3 report.generate
+Generates MD/HTML/PDF referencing evidence hashes and run IDs.
+
+LANE POLICY TABLE (DEFAULTS YOU CAN START WITH)
+
+Lane 0 (no approval)
+	•	intel.* tools
+	•	validate.connectivity.check (single host/port; max_requests ≤ 3; rps ≤ 0.2)
+	•	validate.http.request with:
+	•	method in {GET, HEAD}
+	•	allow_state_change = false
+	•	max_requests ≤ 10 and rps ≤ 0.2
+	•	no auth, no payload
+
+Lane 1 (usually no approval, but policy may require)
+	•	validate.http.request with auth using provided test creds, bounded:
+	•	max_requests ≤ 30, rps ≤ 0.1, methods GET/HEAD/POST allowed only if allow_state_change=false
+	•	validate.service.banner for non-destructive protocols
+	•	validate.cloud.read for low-sensitivity read calls
+
+Lane 2 (approval required)
+	•	validate.vuln.verify (default)
+	•	any state-changing request: allow_state_change=true OR method in {PUT, PATCH, DELETE}
+	•	any credential testing beyond “known-good login once”
+	•	scans that enumerate multiple ports/hosts beyond a tiny bound
+	•	rate_limit_rps > 0.2 or max_requests above lane thresholds
+	•	any action class marked “exploit-like” by policy (even if “verification”)
+
+Policy evaluation pseudologic (server-side):
+	•	if out of scope → BLOCK
+	•	else compute base lane from action_class
+	•	bump lane if:
+	•	methods include POST and payload present and endpoint is auth-sensitive
+	•	max_requests or rps exceed thresholds
+	•	auth involved AND lockout policy unknown
+	•	telemetry indicates WAF/IDS suspicion
+	•	require approval if lane == L2
+
+APPROVAL TOKEN BINDING RULES (IMPORTANT)
+
+A token must bind:
+	•	engagement_id, run_id
+	•	action_class
+	•	exact targets (or a very narrow pattern)
+	•	constraints_effective (server should reject calls that attempt to widen constraints)
+	•	expires_at
+	•	use_limit
+
+This prevents “approved once, used everywhere.”
+
+TELEMETRY-BASED SAFETY HALTS
+
+Your server should halt (TELEMETRY_HALT) and force a new approval / human review when:
+	•	WAF suspected (e.g., repeated 403/429 with known WAF headers, challenge pages)
+	•	auth lockout risk rises (multiple auth failures, 401/403 bursts on login endpoints)
+	•	latency p95 spikes beyond threshold (risking availability)
+	•	error rate crosses threshold (5xx spikes)
+	•	target returns explicit “abuse” or “blocked” signals
+
+Store a telemetry artifact each time you halt so the report can justify why you stopped.
+
+EXAMPLE WORKFLOW DAGS (REFERENCE)
+
+Workflow: Perimeter verify top findings
+	•	evidence.run.init
+	•	governance.scope.load
+	•	intel.asset.import (scanner results)
+	•	for each high-sev finding:
+	•	intel.dns.resolve
+	•	intel.tls.inspect
+	•	intel.http.fingerprint
+	•	governance.policy.evaluate → lane decision
+	•	if L2: approvals.request.create → approvals.token.issue
+	•	validate.vuln.verify (with token)
+	•	report.finding.create (link evidence artifacts)
+	•	report.generate
+
+Workflow: Authenticated web controls validation
+	•	run.init + scope.load
+	•	validate.auth.session_check (Lane 1; may require approval depending on org)
+	•	validate.http.request baseline (GET/HEAD)
+	•	bounded crawl (optional, strict caps)
+	•	verify controls (cookies, headers, CSRF presence)
+	•	approvals for any POST-heavy verification
+	•	findings + report
+
+Workflow: Cloud/IAM exposure review (mostly read-only)
+	•	import inventories/policies
+	•	compute effective permissions graph (could be internal logic tool)
+	•	validate.cloud.read for confirmation checks (approval-gated for sensitive APIs)
+	•	report with least-privilege remediation plan
+
+IMPLEMENTATION NOTES THAT PREVENT REGRETS
+	•	Do not expose a raw “shell” tool. Expose curated tools with hard constraints.
+	•	Make “import existing results” first-class; it reduces noise and risk.
+	•	Always label inferences vs verified facts. Inference is not evidence.
+	•	Keep artifact types consistent and searchable: http_trace, dns_result, tls_report, policy_decision, approval_record, finding, report.
+	•	Make replay possible: store normalized inputs and tool versions so you can re-run reasoning without touching targets.
+
+If you want, I can take this one step further and draft a single “policy-as-code” JSON file (thresholds, allowed methods, lane bump rules, sensitive endpoints patterns), plus a minimal OpenAPI-like definition of every tool input/output to generate stubs automatically.
