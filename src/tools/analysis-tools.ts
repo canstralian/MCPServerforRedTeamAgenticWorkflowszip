@@ -99,10 +99,24 @@ function handleGenerateReport(args: Record<string, unknown>): { content: Array<{
   const findings = store.getFindingsByOperation(parsed.data.operationId);
   const agents = operation.agentIds.map(id => store.getAgent(id)).filter(Boolean);
   
-  const criticalFindings = findings.filter(f => f.severity === VulnerabilitySeverity.CRITICAL);
-  const highFindings = findings.filter(f => f.severity === VulnerabilitySeverity.HIGH);
-  const mediumFindings = findings.filter(f => f.severity === VulnerabilitySeverity.MEDIUM);
-  const lowFindings = findings.filter(f => f.severity === VulnerabilitySeverity.LOW);
+  // Optimize by using single pass reduce instead of multiple filter operations
+  const severityCounts = findings.reduce((acc, f) => {
+    switch (f.severity) {
+      case VulnerabilitySeverity.CRITICAL:
+        acc.critical++;
+        break;
+      case VulnerabilitySeverity.HIGH:
+        acc.high++;
+        break;
+      case VulnerabilitySeverity.MEDIUM:
+        acc.medium++;
+        break;
+      case VulnerabilitySeverity.LOW:
+        acc.low++;
+        break;
+    }
+    return acc;
+  }, { critical: 0, high: 0, medium: 0, low: 0 });
   
   const report = {
     reportId: uuidv4(),
@@ -126,10 +140,10 @@ function handleGenerateReport(args: Record<string, unknown>): { content: Array<{
     } : null,
     summary: {
       totalFindings: findings.length,
-      critical: criticalFindings.length,
-      high: highFindings.length,
-      medium: mediumFindings.length,
-      low: lowFindings.length,
+      critical: severityCounts.critical,
+      high: severityCounts.high,
+      medium: severityCounts.medium,
+      low: severityCounts.low,
       agentsDeployed: agents.length,
     },
     findings: findings.map(f => ({
@@ -184,30 +198,82 @@ function handleGetStatistics(): { content: Array<{ type: string; text: string }>
   const agents = store.getAllAgents();
   const findings = store.getAllFindings();
   
+  // Optimize by using single pass reduce instead of multiple filter operations
+  const operationStats = operations.reduce((acc, o) => {
+    if (o.status === 'in_progress') {
+      acc.activeOperations++;
+    } else if (o.status === 'completed') {
+      acc.completedOperations++;
+    }
+    return acc;
+  }, { activeOperations: 0, completedOperations: 0 });
+  
+  const findingStats = findings.reduce((acc, f) => {
+    // Count by severity
+    switch (f.severity) {
+      case VulnerabilitySeverity.CRITICAL:
+        acc.bySeverity.critical++;
+        break;
+      case VulnerabilitySeverity.HIGH:
+        acc.bySeverity.high++;
+        break;
+      case VulnerabilitySeverity.MEDIUM:
+        acc.bySeverity.medium++;
+        break;
+      case VulnerabilitySeverity.LOW:
+        acc.bySeverity.low++;
+        break;
+      case VulnerabilitySeverity.INFO:
+        acc.bySeverity.info++;
+        break;
+    }
+    
+    // Count by type
+    switch (f.type) {
+      case FindingType.VULNERABILITY:
+        acc.byType.vulnerability++;
+        break;
+      case FindingType.MISCONFIGURATION:
+        acc.byType.misconfiguration++;
+        break;
+      case FindingType.WEAK_CREDENTIAL:
+        acc.byType.weakCredential++;
+        break;
+      case FindingType.EXPOSED_DATA:
+        acc.byType.exposedData++;
+        break;
+      case FindingType.PRIVILEGE_ESCALATION:
+        acc.byType.privilegeEscalation++;
+        break;
+      case FindingType.LATERAL_MOVEMENT:
+        acc.byType.lateralMovement++;
+        break;
+    }
+    
+    return acc;
+  }, {
+    bySeverity: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+    byType: { 
+      vulnerability: 0, 
+      misconfiguration: 0, 
+      weakCredential: 0, 
+      exposedData: 0, 
+      privilegeEscalation: 0, 
+      lateralMovement: 0 
+    }
+  });
+  
   const stats = {
     overview: {
       totalOperations: operations.length,
-      activeOperations: operations.filter(o => o.status === 'in_progress').length,
-      completedOperations: operations.filter(o => o.status === 'completed').length,
+      activeOperations: operationStats.activeOperations,
+      completedOperations: operationStats.completedOperations,
       totalTargets: targets.length,
       totalAgents: agents.length,
       totalFindings: findings.length,
     },
-    findingsBySeverity: {
-      critical: findings.filter(f => f.severity === VulnerabilitySeverity.CRITICAL).length,
-      high: findings.filter(f => f.severity === VulnerabilitySeverity.HIGH).length,
-      medium: findings.filter(f => f.severity === VulnerabilitySeverity.MEDIUM).length,
-      low: findings.filter(f => f.severity === VulnerabilitySeverity.LOW).length,
-      info: findings.filter(f => f.severity === VulnerabilitySeverity.INFO).length,
-    },
-    findingsByType: {
-      vulnerability: findings.filter(f => f.type === FindingType.VULNERABILITY).length,
-      misconfiguration: findings.filter(f => f.type === FindingType.MISCONFIGURATION).length,
-      weakCredential: findings.filter(f => f.type === FindingType.WEAK_CREDENTIAL).length,
-      exposedData: findings.filter(f => f.type === FindingType.EXPOSED_DATA).length,
-      privilegeEscalation: findings.filter(f => f.type === FindingType.PRIVILEGE_ESCALATION).length,
-      lateralMovement: findings.filter(f => f.type === FindingType.LATERAL_MOVEMENT).length,
-    },
+    findingsBySeverity: findingStats.bySeverity,
+    findingsByType: findingStats.byType,
     targetsByType: targets.reduce((acc, t) => {
       acc[t.type] = (acc[t.type] || 0) + 1;
       return acc;

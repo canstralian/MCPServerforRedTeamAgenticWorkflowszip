@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { store } from '../store/index.js';
 import { Agent, AgentType, AgentStatus } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { createErrorResponse, createSuccessResponse, createValidationErrorResponse, createNotFoundResponse } from '../utils/responses.js';
 
 const CreateAgentSchema = z.object({
   name: z.string().min(1).max(255),
@@ -28,89 +29,104 @@ const ListAgentsSchema = z.object({
 function handleCreateAgent(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = CreateAgentSchema.safeParse(args);
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
+    return createValidationErrorResponse(parsed.error.message);
   }
   const { name, type, capabilities } = parsed.data;
   
-  const agent: Agent = {
-    id: uuidv4(),
-    name,
-    type,
-    status: AgentStatus.IDLE,
-    capabilities,
-    createdAt: new Date(),
-    lastActive: new Date(),
-  };
-  store.addAgent(agent);
-  logger.info(`Created agent: ${agent.id}`);
-  return { content: [{ type: 'text', text: JSON.stringify(agent, null, 2) }] };
+  try {
+    const agent: Agent = {
+      id: uuidv4(),
+      name,
+      type,
+      status: AgentStatus.IDLE,
+      capabilities,
+      createdAt: new Date(),
+      lastActive: new Date(),
+    };
+    store.addAgent(agent);
+    logger.info(`Created agent: ${agent.id}`);
+    return createSuccessResponse(agent);
+  } catch (error) {
+    logger.error(`Failed to create agent: ${String(error)}`);
+    return createErrorResponse(String(error));
+  }
 }
 
 function handleListAgents(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = ListAgentsSchema.safeParse(args);
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
+    return createValidationErrorResponse(parsed.error.message);
   }
   let agents = store.getAllAgents();
   if (parsed.data.status) {
     agents = agents.filter((a) => a.status === parsed.data.status);
   }
-  return { content: [{ type: 'text', text: JSON.stringify(agents, null, 2) }] };
+  return createSuccessResponse(agents);
 }
 
 function handleGetAgent(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = GetAgentSchema.safeParse(args);
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
+    return createValidationErrorResponse(parsed.error.message);
   }
   const agent = store.getAgent(parsed.data.agentId);
   if (!agent) {
-    return { content: [{ type: 'text', text: 'Agent not found' }] };
+    return createNotFoundResponse('Agent', parsed.data.agentId);
   }
-  return { content: [{ type: 'text', text: JSON.stringify(agent, null, 2) }] };
+  return createSuccessResponse(agent);
 }
 
 function handleUpdateAgent(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = UpdateAgentSchema.safeParse(args);
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
+    return createValidationErrorResponse(parsed.error.message);
   }
   const { agentId, ...updates } = parsed.data;
-  const agent = store.updateAgent(agentId, updates as Partial<Agent>);
-  if (!agent) {
-    return { content: [{ type: 'text', text: 'Agent not found' }] };
+  try {
+    const agent = store.updateAgent(agentId, updates as Partial<Agent>);
+    if (!agent) {
+      return createNotFoundResponse('Agent', agentId);
+    }
+    logger.info(`Updated agent: ${agentId}`);
+    return createSuccessResponse(agent);
+  } catch (error) {
+    logger.error(`Failed to update agent: ${String(error)}`);
+    return createErrorResponse(String(error));
   }
-  logger.info(`Updated agent: ${agentId}`);
-  return { content: [{ type: 'text', text: JSON.stringify(agent, null, 2) }] };
 }
 
 function handleDeleteAgent(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = GetAgentSchema.safeParse(args);
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
+    return createValidationErrorResponse(parsed.error.message);
   }
   const success = store.deleteAgent(parsed.data.agentId);
   if (!success) {
-    return { content: [{ type: 'text', text: 'Agent not found' }] };
+    return createNotFoundResponse('Agent', parsed.data.agentId);
   }
   logger.info(`Deleted agent: ${parsed.data.agentId}`);
-  return { content: [{ type: 'text', text: 'Agent deleted successfully' }] };
+  return createSuccessResponse({ message: 'Agent deleted successfully', agentId: parsed.data.agentId });
 }
 
 function handleActivateAgent(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = GetAgentSchema.safeParse(args);
   if (!parsed.success) {
-    return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
+    return createValidationErrorResponse(parsed.error.message);
   }
-  const agent = store.updateAgent(parsed.data.agentId, { 
-    status: AgentStatus.ACTIVE,
-    lastActive: new Date(),
-  });
-  if (!agent) {
-    return { content: [{ type: 'text', text: 'Agent not found' }] };
+  try {
+    const agent = store.updateAgent(parsed.data.agentId, { 
+      status: AgentStatus.ACTIVE,
+      lastActive: new Date(),
+    });
+    if (!agent) {
+      return createNotFoundResponse('Agent', parsed.data.agentId);
+    }
+    logger.info(`Activated agent: ${parsed.data.agentId}`);
+    return createSuccessResponse(agent);
+  } catch (error) {
+    logger.error(`Failed to activate agent: ${String(error)}`);
+    return createErrorResponse(String(error));
   }
-  logger.info(`Activated agent: ${parsed.data.agentId}`);
-  return { content: [{ type: 'text', text: JSON.stringify(agent, null, 2) }] };
 }
 
 export const agentTools = [
