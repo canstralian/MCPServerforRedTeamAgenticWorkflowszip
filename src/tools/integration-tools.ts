@@ -180,14 +180,13 @@ async function otxRequest(endpoint: string): Promise<unknown> {
 }
 
 async function hackerOneRequest(endpoint: string): Promise<unknown> {
-  const apiToken = process.env.HACKERONE_API_TOKEN;
-  const apiIdentifier = process.env.HACKERONE_API_IDENTIFIER;
+  const apiKey = process.env.HACKERONE_API_KEY;
 
-  if (!apiToken || !apiIdentifier) {
-    throw new Error('HACKERONE_API_TOKEN and HACKERONE_API_IDENTIFIER not configured. Please add them to your secrets.');
+  if (!apiKey) {
+    throw new Error('HACKERONE_API_KEY not configured. Please add it to your secrets in the format: username:token');
   }
 
-  const auth = Buffer.from(`${apiIdentifier}:${apiToken}`).toString('base64');
+  const auth = Buffer.from(apiKey).toString('base64');
   
   const response = await fetch(`https://api.hackerone.com/v1/${endpoint}`, {
     headers: {
