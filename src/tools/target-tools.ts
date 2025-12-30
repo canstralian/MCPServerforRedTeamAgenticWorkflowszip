@@ -1,4 +1,3 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { store } from '../store/index.js';
@@ -6,11 +5,11 @@ import { Target, TargetType, Vulnerability, VulnerabilitySeverity } from '../typ
 import { logger } from '../utils/logger.js';
 
 const CreateTargetSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).max(255),
   type: z.nativeEnum(TargetType),
-  ipAddress: z.string().optional(),
-  domain: z.string().optional(),
-  ports: z.array(z.number()).optional(),
+  ipAddress: z.string().max(45).optional(), // Max IPv6 length
+  domain: z.string().max(253).optional(), // Max domain length
+  ports: z.array(z.number().min(1).max(65535)).max(1000).optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 
@@ -24,20 +23,20 @@ const ListTargetsSchema = z.object({
 
 const UpdateTargetSchema = z.object({
   targetId: z.string().uuid(),
-  name: z.string().optional(),
-  ipAddress: z.string().optional(),
-  domain: z.string().optional(),
-  ports: z.array(z.number()).optional(),
+  name: z.string().min(1).max(255).optional(),
+  ipAddress: z.string().max(45).optional(),
+  domain: z.string().max(253).optional(),
+  ports: z.array(z.number().min(1).max(65535)).max(1000).optional(),
 });
 
 const AddVulnerabilitySchema = z.object({
   targetId: z.string().uuid(),
-  name: z.string().min(1),
+  name: z.string().min(1).max(255),
   severity: z.nativeEnum(VulnerabilitySeverity),
   cvss: z.number().min(0).max(10),
-  description: z.string().min(1),
+  description: z.string().min(1).max(5000),
   exploitable: z.boolean().optional(),
-  mitigation: z.string().optional(),
+  mitigation: z.string().max(5000).optional(),
 });
 
 function handleCreateTarget(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
@@ -264,7 +263,4 @@ export function handleTargetTool(name: string, args: Record<string, unknown>): {
     default:
       return null;
   }
-}
-
-export function registerTargetTools(server: Server): void {
 }
