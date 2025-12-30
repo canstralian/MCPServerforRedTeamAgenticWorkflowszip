@@ -7,6 +7,7 @@ import { agentTools, handleAgentTool } from './agent-tools.js';
 import { operationTools, handleOperationTool } from './operation-tools.js';
 import { targetTools, handleTargetTool } from './target-tools.js';
 import { analysisTools, handleAnalysisTool } from './analysis-tools.js';
+import { integrationTools, handleIntegrationTool } from './integration-tools.js';
 
 export enum WorkflowStage {
   PLANNING = 'planning',
@@ -55,6 +56,15 @@ const toolStageMapping: Record<string, WorkflowStage> = {
   get_finding: WorkflowStage.REPORTING,
   generate_report: WorkflowStage.REPORTING,
   get_statistics: WorkflowStage.REPORTING,
+  
+  virustotal_scan_hash: WorkflowStage.RECONNAISSANCE,
+  virustotal_scan_url: WorkflowStage.RECONNAISSANCE,
+  virustotal_scan_ip: WorkflowStage.RECONNAISSANCE,
+  virustotal_scan_domain: WorkflowStage.RECONNAISSANCE,
+  otx_get_indicator: WorkflowStage.RECONNAISSANCE,
+  otx_get_pulses: WorkflowStage.RECONNAISSANCE,
+  hackerone_list_reports: WorkflowStage.REPORTING,
+  hackerone_get_report: WorkflowStage.REPORTING,
 };
 
 function addStageToTools(tools: Array<{ name: string; description: string; inputSchema: unknown }>): ToolDefinition[] {
@@ -70,6 +80,7 @@ const allToolsWithStages: ToolDefinition[] = [
   ...addStageToTools(operationTools),
   ...addStageToTools(targetTools),
   ...addStageToTools(analysisTools),
+  ...addStageToTools(integrationTools),
 ];
 
 const toolsByStage = {
@@ -112,6 +123,9 @@ export function registerTools(server: Server): void {
     if (result) return result;
 
     result = handleAnalysisTool(name, typedArgs);
+    if (result) return result;
+
+    result = handleIntegrationTool(name, typedArgs);
     if (result) return result;
 
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
