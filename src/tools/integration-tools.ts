@@ -179,6 +179,18 @@ async function otxRequest(endpoint: string): Promise<unknown> {
   return response.json();
 }
 
+const HACKERONE_ERROR_MESSAGES: Record<number, string> = {
+  400: 'Bad Request - Request does not conform with the specification',
+  401: 'Unauthorized - Invalid API credentials. Ensure HACKERONE_API_KEY is in format username:token',
+  403: 'Forbidden - API token does not grant access to this resource',
+  404: 'Not Found - The requested resource does not exist',
+  406: 'Not Acceptable - Invalid response format requested',
+  422: 'Unprocessable Entity - Request syntax is correct but could not be processed',
+  429: 'Too Many Requests - Rate limit exceeded. Read: 600/min, Write: 25/20sec',
+  500: 'Internal Server Error - HackerOne server error',
+  503: 'Service Unavailable - Check status at hackeronestatus.com',
+};
+
 async function hackerOneRequest(endpoint: string): Promise<unknown> {
   const apiKey = process.env.HACKERONE_API_KEY;
 
@@ -196,8 +208,9 @@ async function hackerOneRequest(endpoint: string): Promise<unknown> {
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`HackerOne API error: ${response.status} - ${error}`);
+    const errorMessage = HACKERONE_ERROR_MESSAGES[response.status] || `Unknown error`;
+    const errorBody = await response.text();
+    throw new Error(`HackerOne API error (${response.status}): ${errorMessage}. Details: ${errorBody}`);
   }
 
   return response.json();
