@@ -6,7 +6,7 @@ This is a Model Context Protocol (MCP) server for red team agentic workflows. It
 
 **Purpose:** Enable LLMs to orchestrate red team security assessments through structured tool calls.
 
-**Current State:** Fully functional MCP server with 32 tools organized by MITRE ATT&CK workflow stages, plus security integrations for VirusTotal, AlienVault OTX, and HackerOne.
+**Current State:** Fully functional MCP server with 45 tools organized by MITRE ATT&CK workflow stages, plus comprehensive security integrations for VirusTotal, AlienVault OTX, and HackerOne.
 
 ## LLM Compatibility
 

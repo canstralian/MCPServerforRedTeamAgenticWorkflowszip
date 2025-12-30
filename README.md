@@ -8,7 +8,7 @@ A Model Context Protocol (MCP) server for orchestrating red team security assess
 
 ## Features
 
-- **32 MCP Tools** organized by MITRE ATT&CK workflow stages
+- **45 MCP Tools** organized by MITRE ATT&CK workflow stages
 - **Multi-LLM Support** - Works with Claude, GPT-4, Gemini, and any MCP-compatible model
 - **Security Integrations** - VirusTotal, AlienVault OTX, and HackerOne APIs
 - **Operation Management** - Track assessments from planning through reporting
@@ -53,7 +53,7 @@ Add to your MCP client configuration (e.g., Claude Desktop):
 
 ## Tools by Workflow Stage
 
-### Planning (6 tools)
+### Planning (7 tools)
 
 Setup agents, operations, and targets before engagement.
 
@@ -65,8 +65,9 @@ Setup agents, operations, and targets before engagement.
 | `update_agent` | Update agent properties |
 | `create_operation` | Create a new operation targeting a system |
 | `create_target` | Define a target (web app, network, host, API, database, cloud) |
+| `hackerone_create_asset` | Create asset in HackerOne organization |
 
-### Reconnaissance (11 tools)
+### Reconnaissance (16 tools)
 
 Gather intelligence on targets using built-in tools and external APIs.
 
@@ -83,6 +84,10 @@ Gather intelligence on targets using built-in tools and external APIs.
 | `virustotal_scan_domain` | Get VirusTotal domain report |
 | `otx_get_indicator` | Get AlienVault OTX threat intelligence |
 | `otx_get_pulses` | Get OTX threat feeds/pulses |
+| `hackerone_get_program` | Get HackerOne program details and scope |
+| `hackerone_get_programs` | List all accessible HackerOne programs |
+| `hackerone_list_assets` | List assets in a HackerOne organization |
+| `hackerone_get_activities` | Get activity feed for a program |
 
 ### Exploitation (4 tools)
 
@@ -95,17 +100,19 @@ Execute attacks, activate agents, and record vulnerabilities.
 | `update_operation` | Update operation phase or details |
 | `add_vulnerability` | Record a vulnerability on a target |
 
-### Post-Exploitation (1 tool)
+### Post-Exploitation (3 tools)
 
 Document findings during active exploitation.
 
 | Tool | Description |
 |------|-------------|
 | `add_finding` | Record a security finding with severity, evidence, and mitigation |
+| `hackerone_create_report` | Create/import vulnerability report to HackerOne |
+| `hackerone_update_severity` | Update severity of a HackerOne report |
 
-### Reporting (10 tools)
+### Reporting (15 tools)
 
-Generate reports, review findings, and manage resources.
+Generate reports, review findings, manage resources, and interact with HackerOne.
 
 | Tool | Description |
 |------|-------------|
@@ -117,8 +124,13 @@ Generate reports, review findings, and manage resources.
 | `delete_operation` | Remove an operation |
 | `delete_target` | Remove a target |
 | `delete_agent` | Remove an agent |
-| `hackerone_list_reports` | List HackerOne vulnerability reports |
+| `hackerone_list_reports` | List HackerOne vulnerability reports with filters |
 | `hackerone_get_report` | Get HackerOne report details |
+| `hackerone_update_report_state` | Change report state (triage, resolve, close) |
+| `hackerone_add_comment` | Add comment to a report |
+| `hackerone_award_bounty` | Award bounty on a report |
+| `hackerone_get_balance` | Get program bounty balance |
+| `hackerone_get_analytics` | Get program analytics data |
 
 ## Security Integrations
 

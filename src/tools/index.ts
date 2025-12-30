@@ -63,8 +63,21 @@ const toolStageMapping: Record<string, WorkflowStage> = {
   virustotal_scan_domain: WorkflowStage.RECONNAISSANCE,
   otx_get_indicator: WorkflowStage.RECONNAISSANCE,
   otx_get_pulses: WorkflowStage.RECONNAISSANCE,
+  
   hackerone_list_reports: WorkflowStage.REPORTING,
   hackerone_get_report: WorkflowStage.REPORTING,
+  hackerone_create_report: WorkflowStage.POST_EXPLOITATION,
+  hackerone_update_report_state: WorkflowStage.REPORTING,
+  hackerone_add_comment: WorkflowStage.REPORTING,
+  hackerone_update_severity: WorkflowStage.POST_EXPLOITATION,
+  hackerone_award_bounty: WorkflowStage.REPORTING,
+  hackerone_get_program: WorkflowStage.RECONNAISSANCE,
+  hackerone_get_programs: WorkflowStage.RECONNAISSANCE,
+  hackerone_get_balance: WorkflowStage.REPORTING,
+  hackerone_get_analytics: WorkflowStage.REPORTING,
+  hackerone_list_assets: WorkflowStage.RECONNAISSANCE,
+  hackerone_create_asset: WorkflowStage.PLANNING,
+  hackerone_get_activities: WorkflowStage.RECONNAISSANCE,
 };
 
 function addStageToTools(tools: Array<{ name: string; description: string; inputSchema: unknown }>): ToolDefinition[] {
