@@ -6,7 +6,7 @@ This is a Model Context Protocol (MCP) server for red team agentic workflows. It
 
 **Purpose:** Enable LLMs to orchestrate red team security assessments through structured tool calls.
 
-**Current State:** Fully functional MCP server with 24 tools organized by MITRE ATT&CK workflow stages.
+**Current State:** Fully functional MCP server with 32 tools organized by MITRE ATT&CK workflow stages, plus security integrations for VirusTotal, AlienVault OTX, and HackerOne.
 
 ## LLM Compatibility
 
@@ -51,8 +51,8 @@ Setup agents, operations, and targets before engagement begins.
 | `create_operation` | Create a new operation targeting a system |
 | `create_target` | Define a new target (web app, network, host, API, database, cloud) |
 
-### 2. RECONNAISSANCE (5 tools)
-Gather intelligence on targets and monitor operation progress.
+### 2. RECONNAISSANCE (11 tools)
+Gather intelligence on targets using built-in tools and external APIs.
 
 | Tool | Description |
 |------|-------------|
@@ -61,6 +61,12 @@ Gather intelligence on targets and monitor operation progress.
 | `list_targets` | List all targets with optional type filter |
 | `get_target` | Get target details including vulnerabilities |
 | `update_target` | Update target information |
+| `virustotal_scan_hash` | Look up file hash on VirusTotal for malware analysis |
+| `virustotal_scan_url` | Scan URL on VirusTotal for malicious content |
+| `virustotal_scan_ip` | Get VirusTotal report for an IP address |
+| `virustotal_scan_domain` | Get VirusTotal report for a domain |
+| `otx_get_indicator` | Get AlienVault OTX threat intelligence for IOCs |
+| `otx_get_pulses` | Get AlienVault OTX threat feeds/pulses |
 
 ### 3. EXPLOITATION (4 tools)
 Execute attacks, activate agents, and record vulnerabilities.
@@ -79,7 +85,7 @@ Document findings during active exploitation.
 |------|-------------|
 | `add_finding` | Record a security finding with severity, evidence, and mitigation |
 
-### 5. REPORTING (8 tools)
+### 5. REPORTING (10 tools)
 Generate reports, review findings, and clean up resources.
 
 | Tool | Description |
@@ -92,6 +98,25 @@ Generate reports, review findings, and clean up resources.
 | `delete_operation` | Remove an operation |
 | `delete_target` | Remove a target |
 | `delete_agent` | Remove an agent |
+| `hackerone_list_reports` | List HackerOne vulnerability reports |
+| `hackerone_get_report` | Get HackerOne report details |
+
+## Security Integrations
+
+### VirusTotal
+- **Purpose:** File/URL/IP/domain scanning and malware analysis
+- **API Key:** `VIRUSTOTAL_API_KEY`
+- **Docs:** https://developers.virustotal.com/reference
+
+### AlienVault OTX
+- **Purpose:** Open Threat Exchange - threat intelligence and IOC lookups
+- **API Key:** `OTX_API_KEY`
+- **Docs:** https://otx.alienvault.com/api
+
+### HackerOne
+- **Purpose:** Bug bounty and vulnerability disclosure management
+- **API Key:** `HACKERONE_API_KEY` (format: `username:token`)
+- **Docs:** https://api.hackerone.com/
 
 ## Enums and Types
 
@@ -124,7 +149,8 @@ src/
 │   ├── agent-tools.ts    # Agent CRUD tools
 │   ├── operation-tools.ts # Operation lifecycle tools
 │   ├── target-tools.ts   # Target management tools
-│   └── analysis-tools.ts # Findings and reporting tools
+│   ├── analysis-tools.ts # Findings and reporting tools
+│   └── integration-tools.ts # External API integrations (VT, OTX, H1)
 ├── resources/
 │   └── index.ts          # MCP resource registration
 ├── types/
@@ -155,13 +181,27 @@ npm run start
 | `MCP_SERVER_NAME` | redteam-mcp-server | Server name |
 | `MCP_VERSION` | 1.0.0 | Server version |
 | `LOG_LEVEL` | info | Logging level |
+| `VIRUSTOTAL_API_KEY` | - | VirusTotal API key |
+| `OTX_API_KEY` | - | AlienVault OTX API key |
+| `HACKERONE_API_KEY` | - | HackerOne API key (username:token format) |
 
 ## Recent Changes
 
-- **2025-12-30:** Reorganized tools by MITRE ATT&CK workflow stages (planning → recon → exploitation → post-exploitation → reporting)
-- **2025-12-30:** Added workflow stage metadata to all tool definitions
-- **2025-12-30:** Tool descriptions now include stage prefixes for easy identification
-- **2025-12-30:** Implemented full tool suite (24 tools) for agents, operations, targets, and analysis
+- **2025-12-30:** Added security integrations (VirusTotal, AlienVault OTX, HackerOne)
+- **2025-12-30:** Added 8 new reconnaissance and reporting tools for external APIs
+- **2025-12-30:** Simplified HackerOne auth to single API key format
+- **2025-12-30:** Created Notion workspace for Red Team Operations tracking
+- **2025-12-30:** Reorganized tools by MITRE ATT&CK workflow stages
+- **2025-12-30:** Implemented full tool suite (32 tools) for agents, operations, targets, and analysis
+
+## Notion Integration
+
+Connected to Notion workspace for documentation and tracking:
+- **Red Team Operations Hub** - Central workspace page
+- **Activity Log** - Track operations and activities
+- **Recon Targets** - Manage reconnaissance targets
+- **Findings** - Document discovered vulnerabilities
+- **Integrations** - API integration documentation
 
 ## User Preferences
 
@@ -170,3 +210,4 @@ npm run start
 - Zod for schema validation
 - UUID for unique identifiers
 - Tools organized by MITRE ATT&CK workflow stages
+- Security integrations via environment variables
