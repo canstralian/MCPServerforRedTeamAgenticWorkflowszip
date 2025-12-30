@@ -6,7 +6,7 @@ This is a Model Context Protocol (MCP) server for red team agentic workflows. It
 
 **Purpose:** Enable LLMs to orchestrate red team security assessments through structured tool calls.
 
-**Current State:** Fully functional MCP server with 45 tools organized by MITRE ATT&CK workflow stages, plus comprehensive security integrations for VirusTotal, AlienVault OTX, and HackerOne.
+**Current State:** Fully functional MCP server with 76+ tools organized by MITRE ATT&CK workflow stages, including security integrations (VirusTotal, AlienVault OTX, HackerOne) and productivity connectors (Linear, Google Workspace, Notion, GitHub).
 
 ## LLM Compatibility
 
@@ -118,6 +118,75 @@ Generate reports, review findings, and clean up resources.
 - **API Key:** `HACKERONE_API_KEY` (format: `username:token`)
 - **Docs:** https://api.hackerone.com/
 
+## Productivity Connectors (31 tools)
+
+These connectors integrate with external productivity services via Replit's OAuth connectors.
+
+### Linear (5 tools)
+| Tool | Stage | Description |
+|------|-------|-------------|
+| `linear_create_issue` | Planning | Create issues for tracking findings/tasks |
+| `linear_list_issues` | Planning | List issues with filters |
+| `linear_update_issue` | Exploitation | Update issue status/priority |
+| `linear_list_teams` | Planning | List available teams |
+| `linear_add_comment` | Reporting | Add comments to issues |
+
+### Google Sheets (4 tools)
+| Tool | Stage | Description |
+|------|-------|-------------|
+| `sheets_create_spreadsheet` | Planning | Create spreadsheets for tracking |
+| `sheets_read_data` | Reconnaissance | Read target/asset data |
+| `sheets_write_data` | Post-Exploitation | Write vulnerability matrices |
+| `sheets_append_data` | Post-Exploitation | Append new findings |
+
+### Google Drive (4 tools)
+| Tool | Stage | Description |
+|------|-------|-------------|
+| `drive_list_files` | Reconnaissance | List assessment files |
+| `drive_create_folder` | Planning | Create evidence folders |
+| `drive_upload_file` | Post-Exploitation | Upload evidence/screenshots |
+| `drive_download_file` | Reconnaissance | Download assessment resources |
+
+### Google Docs (3 tools)
+| Tool | Stage | Description |
+|------|-------|-------------|
+| `docs_create_document` | Reporting | Create assessment reports |
+| `docs_get_document` | Reporting | Read report content |
+| `docs_insert_text` | Reporting | Add findings to reports |
+
+### Gmail (3 tools)
+| Tool | Stage | Description |
+|------|-------|-------------|
+| `gmail_send_email` | Reporting | Send notifications/reports |
+| `gmail_list_messages` | Reconnaissance | List relevant messages |
+| `gmail_get_message` | Reconnaissance | Read message details |
+
+### Google Calendar (3 tools)
+| Tool | Stage | Description |
+|------|-------|-------------|
+| `calendar_create_event` | Planning | Schedule assessments |
+| `calendar_list_events` | Planning | View scheduled events |
+| `calendar_update_event` | Planning | Modify assessment schedules |
+
+### Notion (5 tools)
+| Tool | Stage | Description |
+|------|-------|-------------|
+| `notion_search` | Reconnaissance | Search workspace |
+| `notion_create_page` | Post-Exploitation | Create documentation pages |
+| `notion_get_page` | Reconnaissance | Read page content |
+| `notion_update_page` | Post-Exploitation | Update documentation |
+| `notion_query_database` | Reconnaissance | Query tracking databases |
+
+### GitHub (6 tools)
+| Tool | Stage | Description |
+|------|-------|-------------|
+| `github_list_repos` | Reconnaissance | List repositories |
+| `github_get_repo` | Reconnaissance | Get repo details |
+| `github_list_issues` | Reconnaissance | List repo issues |
+| `github_create_issue` | Post-Exploitation | Create security issues |
+| `github_get_file` | Reconnaissance | Read repository files |
+| `github_create_file` | Post-Exploitation | Create/update files |
+
 ## Enums and Types
 
 ### Agent Types
@@ -142,6 +211,8 @@ src/
 ├── index.ts              # Server entry point
 ├── config/
 │   └── index.ts          # Configuration (port, env, server name)
+├── connectors/
+│   └── index.ts          # OAuth connector clients (Gmail, Calendar, Drive, Sheets, Docs, Linear, Notion, GitHub)
 ├── store/
 │   └── index.ts          # In-memory data store for agents, operations, targets, findings
 ├── tools/
@@ -150,7 +221,8 @@ src/
 │   ├── operation-tools.ts # Operation lifecycle tools
 │   ├── target-tools.ts   # Target management tools
 │   ├── analysis-tools.ts # Findings and reporting tools
-│   └── integration-tools.ts # External API integrations (VT, OTX, H1)
+│   ├── integration-tools.ts # External API integrations (VT, OTX, H1)
+│   └── connector-tools.ts # Productivity connector tools (31 tools)
 ├── resources/
 │   └── index.ts          # MCP resource registration
 ├── types/
@@ -187,6 +259,9 @@ npm run start
 
 ## Recent Changes
 
+- **2025-12-30:** Added 31 productivity connector tools (Linear, Gmail, Calendar, Drive, Sheets, Docs, Notion, GitHub)
+- **2025-12-30:** Integrated Replit OAuth connectors for seamless authentication
+- **2025-12-30:** Created connectors module for unified client management
 - **2025-12-30:** Added security integrations (VirusTotal, AlienVault OTX, HackerOne)
 - **2025-12-30:** Added 8 new reconnaissance and reporting tools for external APIs
 - **2025-12-30:** Simplified HackerOne auth to single API key format

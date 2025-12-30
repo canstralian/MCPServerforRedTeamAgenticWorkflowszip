@@ -8,6 +8,7 @@ import { operationTools, handleOperationTool } from './operation-tools.js';
 import { targetTools, handleTargetTool } from './target-tools.js';
 import { analysisTools, handleAnalysisTool } from './analysis-tools.js';
 import { integrationTools, handleIntegrationTool } from './integration-tools.js';
+import { connectorTools, handleConnectorTool } from './connector-tools.js';
 
 export enum WorkflowStage {
   PLANNING = 'planning',
@@ -78,6 +79,47 @@ const toolStageMapping: Record<string, WorkflowStage> = {
   hackerone_list_assets: WorkflowStage.RECONNAISSANCE,
   hackerone_create_asset: WorkflowStage.PLANNING,
   hackerone_get_activities: WorkflowStage.RECONNAISSANCE,
+
+  linear_create_issue: WorkflowStage.PLANNING,
+  linear_list_issues: WorkflowStage.PLANNING,
+  linear_update_issue: WorkflowStage.EXPLOITATION,
+  linear_list_teams: WorkflowStage.PLANNING,
+  linear_add_comment: WorkflowStage.REPORTING,
+
+  sheets_create_spreadsheet: WorkflowStage.PLANNING,
+  sheets_read_data: WorkflowStage.RECONNAISSANCE,
+  sheets_write_data: WorkflowStage.POST_EXPLOITATION,
+  sheets_append_data: WorkflowStage.POST_EXPLOITATION,
+
+  drive_list_files: WorkflowStage.RECONNAISSANCE,
+  drive_create_folder: WorkflowStage.PLANNING,
+  drive_upload_file: WorkflowStage.POST_EXPLOITATION,
+  drive_download_file: WorkflowStage.RECONNAISSANCE,
+
+  docs_create_document: WorkflowStage.REPORTING,
+  docs_get_document: WorkflowStage.REPORTING,
+  docs_insert_text: WorkflowStage.REPORTING,
+
+  gmail_send_email: WorkflowStage.REPORTING,
+  gmail_list_messages: WorkflowStage.RECONNAISSANCE,
+  gmail_get_message: WorkflowStage.RECONNAISSANCE,
+
+  calendar_create_event: WorkflowStage.PLANNING,
+  calendar_list_events: WorkflowStage.PLANNING,
+  calendar_update_event: WorkflowStage.PLANNING,
+
+  notion_search: WorkflowStage.RECONNAISSANCE,
+  notion_create_page: WorkflowStage.POST_EXPLOITATION,
+  notion_get_page: WorkflowStage.RECONNAISSANCE,
+  notion_update_page: WorkflowStage.POST_EXPLOITATION,
+  notion_query_database: WorkflowStage.RECONNAISSANCE,
+
+  github_list_repos: WorkflowStage.RECONNAISSANCE,
+  github_get_repo: WorkflowStage.RECONNAISSANCE,
+  github_list_issues: WorkflowStage.RECONNAISSANCE,
+  github_create_issue: WorkflowStage.POST_EXPLOITATION,
+  github_get_file: WorkflowStage.RECONNAISSANCE,
+  github_create_file: WorkflowStage.POST_EXPLOITATION,
 };
 
 function addStageToTools(tools: Array<{ name: string; description: string; inputSchema: unknown }>): ToolDefinition[] {
@@ -94,6 +136,7 @@ const allToolsWithStages: ToolDefinition[] = [
   ...addStageToTools(targetTools),
   ...addStageToTools(analysisTools),
   ...addStageToTools(integrationTools),
+  ...addStageToTools(connectorTools),
 ];
 
 const toolsByStage = {
@@ -140,6 +183,9 @@ export function registerTools(server: Server): void {
 
     result = handleIntegrationTool(name, typedArgs);
     if (result) return result;
+
+    const connectorResult = await handleConnectorTool(name, typedArgs);
+    if (connectorResult) return connectorResult;
 
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
   });

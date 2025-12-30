@@ -1,10 +1,11 @@
-modules = ["nodejs-20"]
+modules = ["nodejs-20", "python-3.11"]
 [nix]
 channel = "stable-25_05"
 packages = ["unzip"]
 
 [agent]
 expertMode = true
+integrations = ["google-mail:1.0.0", "linear:1.0.0", "google-drive:1.0.0", "google-sheet:1.0.0", "google-docs:1.0.0", "notion:1.0.0", "google-calendar:1.0.0", "github:1.0.0"]
 
 [workflows]
 runButton = "Project"

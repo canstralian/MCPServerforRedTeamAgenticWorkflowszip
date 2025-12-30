@@ -1,0 +1,260 @@
+# MCP Servers for Red Team & Bug Bounty Operations
+
+This is a fascinating intersection—using MCP to build **intelligent security orchestration layers** that bridge AI reasoning with offensive security tools. Here’s how this plays out in practice:
+
+## Core Architecture Pattern
+
+```
+AI Agent (Claude) ←→ MCP Server ←→ Security Tools
+                      ↓
+              Authorization Layer
+              Scope Validation
+              Action Logging
+              Result Caching
+```
+
+## High-Value Use Cases
+
+### 1. **Reconnaissance Orchestration**
+
+MCP server wrapping recon tools with intelligent chaining:
+
+- `subdomain_enum` → aggregate amass, subfinder, assetfinder
+- `port_scan` → nmap with rate limiting, scope checks
+- `tech_stack_detection` → whatweb, wappalyzer, nuclei
+- `dns_analysis` → dig, dnsenum with recursive logic
+
+**Why MCP wins**: AI can decide *which* tools to chain based on initial findings, adapting the recon workflow dynamically.
+
+### 2. **Vulnerability Assessment Pipeline**
+
+```python
+# Example MCP tool signature
+@mcp.tool()
+async def scan_web_vulns(
+    target: str,
+    scope_file: str,  # Explicit allow-list
+    intensity: Literal["passive", "active", "aggressive"]
+) -> VulnReport:
+    # Validate target in scope
+    # Run nuclei/nikto/zaproxy based on intensity
+    # Parse, deduplicate, score findings
+    # Return structured report with CVE mappings
+```
+
+**Key advantage**: Context-aware scanning. AI reads previous scan results, adjusts intensity, avoids redundant checks.
+
+### 3. **Exploit Validation & PoC Generation**
+
+MCP tools for:
+
+- `search_exploit_db` → query ExploitDB, GitHub, CVE databases
+- `validate_cve` → check applicability to detected versions
+- `generate_poc` → template exploit code with target-specific params
+- `test_payload` → sandboxed execution with rollback
+
+**Safety layer**: Every exploit attempt logs to audit trail, requires explicit confirmation for destructive actions.
+
+### 4. **Report Generation & Bug Submission**
+
+- `parse_scan_results` → normalize output from multiple tools
+- `deduplicate_findings` → merge duplicate vulns across scans
+- `generate_report` → structured markdown/JSON with CVSS scoring
+- `draft_bug_bounty_report` → platform-specific templates (HackerOne, Bugcrowd)
+
+## Implementation Blueprint
+
+### FastAPI MCP Server Structure
+
+```python
+# mcp_security/server.py
+from mcp.server import Server
+from mcp.types import Tool, TextContent
+import subprocess
+import json
+from pathlib import Path
+
+class SecurityMCPServer:
+    def __init__(self, scope_file: Path, log_dir: Path):
+        self.scope = self._load_scope(scope_file)
+        self.log_dir = log_dir
+        self.server = Server("security-automation")
+        
+    def _validate_target(self, target: str) -> bool:
+        """Strict scope validation"""
+        return any(target.endswith(domain) for domain in self.scope)
+    
+    def _log_action(self, tool: str, target: str, command: str):
+        """Audit every action"""
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "tool": tool,
+            "target": target,
+            "command": command
+        }
+        with open(self.log_dir / "audit.jsonl", "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
+    
+    @mcp.tool()
+    async def subdomain_scan(
+        self, 
+        domain: str,
+        methods: list[str] = ["amass", "subfinder"]
+    ) -> TextContent:
+        if not self._validate_target(domain):
+            return TextContent(
+                type="text",
+                text=f"Error: {domain} not in authorized scope"
+            )
+        
+        # Run tools, aggregate results
+        subdomains = set()
+        for method in methods:
+            result = await self._run_tool(method, domain)
+            subdomains.update(result)
+        
+        self._log_action("subdomain_scan", domain, methods)
+        return TextContent(
+            type="text",
+            text=json.dumps(list(subdomains))
+        )
+```
+
+### Tool Orchestration Patterns
+
+**Pattern 1: Staged Recon**
+
+```
+1. subdomain_enum(domain)
+2. resolve_dns(subdomains) → filter live hosts
+3. port_scan(live_hosts, common_ports)
+4. service_detection(open_ports)
+5. vuln_scan(services) → prioritize by exploitability
+```
+
+**Pattern 2: Exploit Chain Discovery**
+
+```
+1. detect_tech_stack(target)
+2. search_known_vulns(stack_components)
+3. check_misconfigurations(common_issues)
+4. test_auth_bypass(endpoints)
+5. generate_report(findings)
+```
+
+## Practical Tools to Wrap
+
+### High-Impact Candidates
+
+- **nuclei**: Template-based scanning (21k+ templates)
+- **httpx**: HTTP probing with pipeline support
+- **ffuf**: Web fuzzing with intelligent wordlists
+- **sqlmap**: SQL injection detection/exploitation
+- **metasploit**: Exploit framework (RPC API)
+- **burp suite**: Professional edition API
+- **nmap**: Network discovery and security auditing
+
+### Safety Wrappers
+
+```python
+class SafetyWrapper:
+    DISRUPTIVE_COMMANDS = {
+        "dos", "flood", "exploit", "shell"
+    }
+    
+    def validate_command(self, cmd: str) -> tuple[bool, str]:
+        for pattern in self.DISRUPTIVE_COMMANDS:
+            if pattern in cmd.lower():
+                return False, f"Command contains disruptive pattern: {pattern}"
+        return True, "OK"
+    
+    def rate_limit(self, target: str, requests_per_second: int = 5):
+        # Implement token bucket or leaky bucket
+        pass
+```
+
+## Bug Bounty Workflow Example
+
+```
+# User: "Assess api.target.com for IDOR vulns"
+
+1. MCP validates api.target.com in scope file
+2. AI agent decides: subdomain_enum → port_scan → tech_stack
+3. Detects: FastAPI app, PostgreSQL, JWT auth
+4. AI requests: test_idor_endpoints with common patterns
+5. MCP runs custom script:
+   - Enumerate API endpoints (/users/{id}, /orders/{id})
+   - Test authorization with multiple JWT tokens
+   - Check UUID predictability, sequential IDs
+6. Findings: Users endpoint leaks other user's emails
+7. MCP generates HackerOne report draft:
+   - Title: "IDOR in GET /api/users/{id} endpoint"
+   - Impact: Enumeration of all user emails (CVSS 6.5)
+   - PoC: curl commands with different tokens
+   - Recommendation: Implement proper authz checks
+```
+
+## Advanced Capabilities
+
+### 1. **Intelligent Payload Mutation**
+
+AI analyzes WAF logs, adapts payloads:
+
+```python
+@mcp.tool()
+async def adaptive_sqli_test(target: str, waf_detected: bool):
+    if waf_detected:
+        # Use time-based blind SQLi with encoding
+        payloads = generate_evasion_payloads()
+    else:
+        # Standard union-based injection
+        payloads = generate_standard_payloads()
+    # Test and return results
+```
+
+### 2. **Context Retention Across Sessions**
+
+```python
+# Store recon results in PostgreSQL
+# AI queries: "What did we find last week on target X?"
+# MCP retrieves cached results, skips redundant scans
+```
+
+### 3. **Risk Scoring Engine**
+
+```python
+def score_finding(vuln: Vulnerability) -> RiskScore:
+    base_cvss = vuln.cvss_score
+    adjustments = {
+        "internet_facing": +2.0,
+        "auth_required": -1.5,
+        "exploit_available": +3.0,
+        "patch_available": -1.0
+    }
+    return calculate_adjusted_score(base_cvss, adjustments)
+```
+
+## Key Advantages Over Traditional Tooling
+
+1. **Adaptive Workflows**: AI decides next steps based on findings
+1. **Natural Language Interface**: “Check if target uses outdated Apache”
+1. **Automatic Correlation**: Links CVEs, exploits, affected components
+1. **Knowledge Synthesis**: AI explains *why* something is vulnerable
+1. **Compliance Friendly**: Every action logged, scope-validated, auditable
+
+## Gotchas & Considerations
+
+- **Authorization**: Hard-code scope files, never infer targets
+- **Rate Limiting**: Respect robots.txt, implement backoff
+- **Tool Stability**: Wrap tools with retries, error handling
+- **Result Parsing**: Normalize output from different tools
+- **API Keys**: Secure storage for Shodan, VirusTotal, etc.
+
+Want to dive into a specific implementation? I can help you build:
+
+- A specific MCP server (e.g., nuclei orchestrator)
+- Authorization/scope validation logic
+- A complete recon pipeline
+- Report generation with deduplication
+
+What’s your primary target platform—web apps, APIs, or infrastructure?​​​​​​​​​​​​​​​​

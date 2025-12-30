@@ -1,0 +1,986 @@
+# Modular MCP Security Platform: Build Once, Replicate Everywhere
+
+Let me architect a **composable, extensible system** that handles all three domains with a unified pattern.
+
+## Core Architecture: The Tool Factory Pattern
+
+```
+mcp-security-platform/
+├── core/
+│   ├── __init__.py
+│   ├── base_tool.py          # Abstract base class
+│   ├── scope_validator.py    # Target validation
+│   ├── result_store.py        # PostgreSQL persistence
+│   ├── logger.py              # Structured audit logging
+│   └── cache.py               # Result caching layer
+├── tools/
+│   ├── web/                   # Web app tools
+│   │   ├── nuclei_wrapper.py
+│   │   ├── ffuf_wrapper.py
+│   │   └── whatweb_wrapper.py
+│   ├── api/                   # API-specific tools
+│   │   ├── httpx_wrapper.py
+│   │   ├── arjun_wrapper.py   # Parameter discovery
+│   │   └── jwt_tool_wrapper.py
+│   └── infra/                 # Infrastructure tools
+│       ├── nmap_wrapper.py
+│       ├── masscan_wrapper.py
+│       └── ssh_audit_wrapper.py
+├── workflows/
+│   ├── recon_pipeline.py
+│   ├── vuln_assessment.py
+│   └── exploit_validation.py
+├── config/
+│   ├── scope.yaml             # Authorized targets
+│   ├── tools.yaml             # Tool configurations
+│   └── workflows.yaml         # Pipeline definitions
+├── db/
+│   ├── schema.sql
+│   └── migrations/
+├── server.py                  # MCP server entry point
+├── Dockerfile
+└── docker-compose.yml
+```
+
+## Foundation: The Base Tool Class
+
+```python
+# core/base_tool.py
+from abc import ABC, abstractmethod
+from typing import Any, Optional, Dict, List
+from dataclasses import dataclass, asdict
+from datetime import datetime
+from enum import Enum
+import asyncio
+import subprocess
+import json
+
+class ToolCategory(Enum):
+    WEB = "web"
+    API = "api"
+    INFRA = "infrastructure"
+    RECON = "reconnaissance"
+    EXPLOIT = "exploitation"
+
+class ImpactLevel(Enum):
+    PASSIVE = "passive"      # Read-only, no interaction
+    LOW = "low"              # Minimal interaction (DNS, HTTP GET)
+    MEDIUM = "medium"        # Active probing (POST requests, auth tests)
+    HIGH = "high"            # Exploits, brute force
+    CRITICAL = "critical"    # Destructive actions (requires manual approval)
+
+@dataclass
+class ToolResult:
+    tool_name: str
+    target: str
+    category: ToolCategory
+    impact: ImpactLevel
+    timestamp: datetime
+    success: bool
+    findings: List[Dict[str, Any]]
+    raw_output: str
+    error: Optional[str] = None
+    execution_time: float = 0.0
+    command_executed: Optional[str] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        data['category'] = self.category.value
+        data['impact'] = self.impact.value
+        data['timestamp'] = self.timestamp.isoformat()
+        return data
+
+class BaseTool(ABC):
+    """
+    Abstract base class for all security tools.
+    Enforces consistent interface, validation, logging.
+    """
+    
+    def __init__(
+        self,
+        name: str,
+        category: ToolCategory,
+        impact: ImpactLevel,
+        scope_validator,
+        result_store,
+        logger
+    ):
+        self.name = name
+        self.category = category
+        self.impact = impact
+        self.scope_validator = scope_validator
+        self.result_store = result_store
+        self.logger = logger
+        
+    async def execute(
+        self,
+        target: str,
+        **kwargs
+    ) -> ToolResult:
+        """
+        Main execution method with validation, logging, error handling.
+        """
+        start_time = datetime.now()
+        
+        # 1. Validate target is in scope
+        if not self.scope_validator.validate(target):
+            return ToolResult(
+                tool_name=self.name,
+                target=target,
+                category=self.category,
+                impact=self.impact,
+                timestamp=start_time,
+                success=False,
+                findings=[],
+                raw_output="",
+                error=f"Target {target} not in authorized scope"
+            )
+        
+        # 2. Check cache (skip if tool mutates state)
+        if self.is_cacheable():
+            cached = await self.result_store.get_cached(
+                tool=self.name,
+                target=target,
+                params=kwargs
+            )
+            if cached:
+                self.logger.info(f"Cache hit: {self.name} on {target}")
+                return cached
+        
+        # 3. Log intent before execution
+        self.logger.log_action(
+            tool=self.name,
+            target=target,
+            impact=self.impact,
+            params=kwargs
+        )
+        
+        # 4. Require confirmation for high-impact actions
+        if self.impact in [ImpactLevel.HIGH, ImpactLevel.CRITICAL]:
+            confirmed = await self._request_confirmation(target, kwargs)
+            if not confirmed:
+                return ToolResult(
+                    tool_name=self.name,
+                    target=target,
+                    category=self.category,
+                    impact=self.impact,
+                    timestamp=start_time,
+                    success=False,
+                    findings=[],
+                    raw_output="",
+                    error="User declined high-impact action"
+                )
+        
+        # 5. Execute tool-specific logic
+        try:
+            result = await self._execute_impl(target, **kwargs)
+            result.execution_time = (datetime.now() - start_time).total_seconds()
+            
+            # 6. Store result
+            await self.result_store.save(result)
+            
+            # 7. Log completion
+            self.logger.info(
+                f"Completed {self.name} on {target}: "
+                f"{len(result.findings)} findings in {result.execution_time:.2f}s"
+            )
+            
+            return result
+            
+        except Exception as e:
+            error_result = ToolResult(
+                tool_name=self.name,
+                target=target,
+                category=self.category,
+                impact=self.impact,
+                timestamp=start_time,
+                success=False,
+                findings=[],
+                raw_output="",
+                error=str(e),
+                execution_time=(datetime.now() - start_time).total_seconds()
+            )
+            self.logger.error(f"Tool {self.name} failed: {e}")
+            await self.result_store.save(error_result)
+            return error_result
+    
+    @abstractmethod
+    async def _execute_impl(self, target: str, **kwargs) -> ToolResult:
+        """Implement tool-specific execution logic"""
+        pass
+    
+    @abstractmethod
+    def is_cacheable(self) -> bool:
+        """Whether results can be cached"""
+        pass
+    
+    async def _request_confirmation(self, target: str, params: Dict) -> bool:
+        """Override for interactive confirmation"""
+        return False  # Default: deny high-impact actions
+    
+    async def _run_command(
+        self,
+        command: List[str],
+        timeout: int = 300
+    ) -> tuple[str, str, int]:
+        """
+        Execute subprocess with timeout and resource limits.
+        Returns (stdout, stderr, returncode)
+        """
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=timeout
+            )
+            return (
+                stdout.decode('utf-8', errors='ignore'),
+                stderr.decode('utf-8', errors='ignore'),
+                process.returncode
+            )
+        except asyncio.TimeoutError:
+            process.kill()
+            raise Exception(f"Command timed out after {timeout}s")
+```
+
+## Example Tool Implementation: Nuclei (Web)
+
+```python
+# tools/web/nuclei_wrapper.py
+from core.base_tool import BaseTool, ToolResult, ToolCategory, ImpactLevel
+from typing import List, Dict, Any
+import json
+from datetime import datetime
+
+class NucleiWrapper(BaseTool):
+    """
+    Nuclei template-based vulnerability scanner.
+    Supports 21,000+ templates for web/API/infrastructure.
+    """
+    
+    def __init__(self, scope_validator, result_store, logger):
+        super().__init__(
+            name="nuclei",
+            category=ToolCategory.WEB,
+            impact=ImpactLevel.LOW,  # Mostly passive checks
+            scope_validator=scope_validator,
+            result_store=result_store,
+            logger=logger
+        )
+        self.binary_path = "/usr/local/bin/nuclei"
+        
+    async def _execute_impl(
+        self,
+        target: str,
+        templates: List[str] = None,
+        severity: List[str] = ["critical", "high", "medium"],
+        rate_limit: int = 150  # requests per second
+    ) -> ToolResult:
+        """
+        Run nuclei with specified templates and filters.
+        """
+        command = [
+            self.binary_path,
+            "-u", target,
+            "-json",
+            "-rate-limit", str(rate_limit),
+            "-severity", ",".join(severity)
+        ]
+        
+        if templates:
+            command.extend(["-t", ",".join(templates)])
+        else:
+            # Use default templates, exclude aggressive ones
+            command.extend([
+                "-t", "nuclei-templates/",
+                "-exclude-templates", "nuclei-templates/dos/"
+            ])
+        
+        stdout, stderr, returncode = await self._run_command(command)
+        
+        # Parse JSON output
+        findings = []
+        for line in stdout.strip().split('\n'):
+            if not line:
+                continue
+            try:
+                finding = json.loads(line)
+                findings.append({
+                    "template_id": finding.get("template-id"),
+                    "name": finding.get("info", {}).get("name"),
+                    "severity": finding.get("info", {}).get("severity"),
+                    "description": finding.get("info", {}).get("description"),
+                    "matched_at": finding.get("matched-at"),
+                    "matcher_name": finding.get("matcher-name"),
+                    "extracted_results": finding.get("extracted-results", [])
+                })
+            except json.JSONDecodeError:
+                continue
+        
+        return ToolResult(
+            tool_name=self.name,
+            target=target,
+            category=self.category,
+            impact=self.impact,
+            timestamp=datetime.now(),
+            success=returncode == 0,
+            findings=findings,
+            raw_output=stdout,
+            command_executed=" ".join(command)
+        )
+    
+    def is_cacheable(self) -> bool:
+        return True  # Safe to cache, read-only checks
+```
+
+## Example Tool: Nmap (Infrastructure)
+
+```python
+# tools/infra/nmap_wrapper.py
+from core.base_tool import BaseTool, ToolResult, ToolCategory, ImpactLevel
+import xml.etree.ElementTree as ET
+from typing import List, Dict
+from datetime import datetime
+
+class NmapWrapper(BaseTool):
+    """
+    Network mapper for port scanning and service detection.
+    """
+    
+    def __init__(self, scope_validator, result_store, logger):
+        super().__init__(
+            name="nmap",
+            category=ToolCategory.INFRA,
+            impact=ImpactLevel.MEDIUM,  # Active network probing
+            scope_validator=scope_validator,
+            result_store=result_store,
+            logger=logger
+        )
+        
+    async def _execute_impl(
+        self,
+        target: str,
+        ports: str = "1-1000",
+        scan_type: str = "syn",  # syn, connect, version
+        timing: str = "T3"       # T0-T5 (T3 = normal)
+    ) -> ToolResult:
+        """
+        Execute nmap scan with specified parameters.
+        """
+        command = ["nmap", target, "-p", ports]
+        
+        # Scan type
+        if scan_type == "syn":
+            command.append("-sS")
+        elif scan_type == "version":
+            command.extend(["-sV", "-sC"])
+        elif scan_type == "connect":
+            command.append("-sT")
+        
+        # Timing template
+        command.append(f"-{timing}")
+        
+        # Output XML for structured parsing
+        command.extend(["-oX", "-"])
+        
+        stdout, stderr, returncode = await self._run_command(
+            command,
+            timeout=600  # 10 minutes for large scans
+        )
+        
+        # Parse XML output
+        findings = self._parse_nmap_xml(stdout)
+        
+        return ToolResult(
+            tool_name=self.name,
+            target=target,
+            category=self.category,
+            impact=self.impact,
+            timestamp=datetime.now(),
+            success=returncode == 0,
+            findings=findings,
+            raw_output=stdout,
+            command_executed=" ".join(command)
+        )
+    
+    def _parse_nmap_xml(self, xml_output: str) -> List[Dict]:
+        """Parse nmap XML into structured findings"""
+        findings = []
+        try:
+            root = ET.fromstring(xml_output)
+            for host in root.findall('.//host'):
+                address = host.find('address').get('addr')
+                for port in host.findall('.//port'):
+                    finding = {
+                        "host": address,
+                        "port": int(port.get('portid')),
+                        "protocol": port.get('protocol'),
+                        "state": port.find('state').get('state'),
+                        "service": port.find('service').get('name') if port.find('service') is not None else None,
+                        "version": port.find('service').get('version') if port.find('service') is not None else None
+                    }
+                    findings.append(finding)
+        except ET.ParseError:
+            pass
+        
+        return findings
+    
+    def is_cacheable(self) -> bool:
+        return True  # Cache port scan results
+```
+
+## Scope Validator: Authorization Enforcement
+
+```python
+# core/scope_validator.py
+import yaml
+from pathlib import Path
+from typing import List, Set
+import ipaddress
+from urllib.parse import urlparse
+
+class ScopeValidator:
+    """
+    Validates targets against authorized scope definitions.
+    Supports domains, IPs, CIDR ranges, wildcards.
+    """
+    
+    def __init__(self, scope_file: Path):
+        self.scope_file = scope_file
+        self.domains: Set[str] = set()
+        self.ip_ranges: List[ipaddress.IPv4Network] = []
+        self.excluded: Set[str] = set()
+        self._load_scope()
+    
+    def _load_scope(self):
+        """Load scope from YAML configuration"""
+        with open(self.scope_file) as f:
+            config = yaml.safe_load(f)
+        
+        # Domains
+        for domain in config.get('domains', []):
+            self.domains.add(domain.lower())
+        
+        # IP ranges
+        for ip_range in config.get('ip_ranges', []):
+            self.ip_ranges.append(ipaddress.ip_network(ip_range))
+        
+        # Exclusions (out of scope)
+        for excluded in config.get('excluded', []):
+            self.excluded.add(excluded.lower())
+    
+    def validate(self, target: str) -> bool:
+        """
+        Check if target is within authorized scope.
+        Returns True if authorized, False otherwise.
+        """
+        target = target.lower().strip()
+        
+        # Check exclusions first
+        if self._is_excluded(target):
+            return False
+        
+        # Try domain validation
+        if self._validate_domain(target):
+            return True
+        
+        # Try IP validation
+        if self._validate_ip(target):
+            return True
+        
+        return False
+    
+    def _validate_domain(self, target: str) -> bool:
+        """Check if domain/hostname is in scope"""
+        # Extract domain from URL if needed
+        if target.startswith('http://') or target.startswith('https://'):
+            parsed = urlparse(target)
+            target = parsed.netloc
+        
+        # Remove port if present
+        target = target.split(':')[0]
+        
+        # Exact match
+        if target in self.domains:
+            return True
+        
+        # Subdomain wildcard match (*.example.com matches api.example.com)
+        for domain in self.domains:
+            if domain.startswith('*.'):
+                base_domain = domain[2:]
+                if target.endswith(base_domain):
+                    return True
+            elif target.endswith('.' + domain):
+                return True
+        
+        return False
+    
+    def _validate_ip(self, target: str) -> bool:
+        """Check if IP address is in scope"""
+        try:
+            ip = ipaddress.ip_address(target)
+            for ip_range in self.ip_ranges:
+                if ip in ip_range:
+                    return True
+        except ValueError:
+            pass
+        return False
+    
+    def _is_excluded(self, target: str) -> bool:
+        """Check if target is explicitly excluded"""
+        for excluded in self.excluded:
+            if excluded in target:
+                return True
+        return False
+```
+
+## Scope Configuration Example
+
+```yaml
+# config/scope.yaml
+domains:
+  - "*.example.com"
+  - "api.target.com"
+  - "test.acme.org"
+
+ip_ranges:
+  - "192.168.1.0/24"
+  - "10.0.0.0/8"
+
+excluded:
+  - "production.example.com"  # Never touch production
+  - "billing.example.com"      # Sensitive subdomain
+  - "192.168.1.1"              # Gateway router
+
+# Bug bounty program specific rules
+bug_bounty:
+  program: "example-bugbounty"
+  platform: "hackerone"
+  safe_harbor: true
+  
+  allowed_attacks:
+    - "sqli"
+    - "xss"
+    - "idor"
+    - "ssrf"
+  
+  prohibited:
+    - "dos"
+    - "physical_access"
+    - "social_engineering"
+```
+
+## PostgreSQL Result Store
+
+```sql
+-- db/schema.sql
+CREATE TABLE scan_results (
+    id SERIAL PRIMARY KEY,
+    tool_name VARCHAR(100) NOT NULL,
+    target VARCHAR(500) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    impact VARCHAR(50) NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    success BOOLEAN NOT NULL,
+    execution_time FLOAT,
+    command_executed TEXT,
+    raw_output TEXT,
+    error TEXT,
+    
+    -- Indexes for fast lookups
+    INDEX idx_tool_target (tool_name, target),
+    INDEX idx_timestamp (timestamp DESC),
+    INDEX idx_category (category)
+);
+
+CREATE TABLE findings (
+    id SERIAL PRIMARY KEY,
+    scan_result_id INTEGER REFERENCES scan_results(id) ON DELETE CASCADE,
+    severity VARCHAR(20),  -- critical, high, medium, low, info
+    title TEXT NOT NULL,
+    description TEXT,
+    affected_component TEXT,
+    cve_id VARCHAR(50),
+    cvss_score FLOAT,
+    remediation TEXT,
+    proof_of_concept TEXT,
+    metadata JSONB,  -- Store tool-specific data
+    
+    INDEX idx_severity (severity),
+    INDEX idx_scan_result (scan_result_id)
+);
+
+CREATE TABLE audit_log (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    tool_name VARCHAR(100) NOT NULL,
+    target VARCHAR(500) NOT NULL,
+    action VARCHAR(100) NOT NULL,
+    impact VARCHAR(50) NOT NULL,
+    user_confirmed BOOLEAN DEFAULT FALSE,
+    params JSONB,
+    
+    INDEX idx_timestamp (timestamp DESC),
+    INDEX idx_target (target)
+);
+
+-- Cache table for reusable results
+CREATE TABLE result_cache (
+    id SERIAL PRIMARY KEY,
+    tool_name VARCHAR(100) NOT NULL,
+    target VARCHAR(500) NOT NULL,
+    params_hash VARCHAR(64) NOT NULL,  -- MD5 of params
+    result_id INTEGER REFERENCES scan_results(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    
+    UNIQUE(tool_name, target, params_hash),
+    INDEX idx_expiry (expires_at)
+);
+```
+
+## Result Store Implementation
+
+```python
+# core/result_store.py
+import asyncpg
+import hashlib
+import json
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
+from core.base_tool import ToolResult
+
+class ResultStore:
+    """
+    PostgreSQL-backed storage for scan results with caching.
+    """
+    
+    def __init__(self, db_url: str):
+        self.db_url = db_url
+        self.pool: Optional[asyncpg.Pool] = None
+    
+    async def connect(self):
+        """Initialize connection pool"""
+        self.pool = await asyncpg.create_pool(self.db_url, min_size=5, max_size=20)
+    
+    async def save(self, result: ToolResult) -> int:
+        """
+        Save scan result and associated findings.
+        Returns scan_result_id.
+        """
+        async with self.pool.acquire() as conn:
+            # Insert scan result
+            scan_id = await conn.fetchval(
+                """
+                INSERT INTO scan_results 
+                (tool_name, target, category, impact, timestamp, success, 
+                 execution_time, command_executed, raw_output, error)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING id
+                """,
+                result.tool_name,
+                result.target,
+                result.category.value,
+                result.impact.value,
+                result.timestamp,
+                result.success,
+                result.execution_time,
+                result.command_executed,
+                result.raw_output,
+                result.error
+            )
+            
+            # Insert findings
+            for finding in result.findings:
+                await conn.execute(
+                    """
+                    INSERT INTO findings
+                    (scan_result_id, severity, title, description, metadata)
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
+                    scan_id,
+                    finding.get('severity', 'info'),
+                    finding.get('name') or finding.get('title', 'Unknown'),
+                    finding.get('description', ''),
+                    json.dumps(finding)
+                )
+            
+            return scan_id
+    
+    async def get_cached(
+        self,
+        tool: str,
+        target: str,
+        params: Dict[str, Any],
+        max_age_hours: int = 24
+    ) -> Optional[ToolResult]:
+        """
+        Retrieve cached result if available and not expired.
+        """
+        params_hash = self._hash_params(params)
+        
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT r.* FROM scan_results r
+                JOIN result_cache c ON r.id = c.result_id
+                WHERE c.tool_name = $1 
+                  AND c.target = $2 
+                  AND c.params_hash = $3
+                  AND c.expires_at > NOW()
+                ORDER BY r.timestamp DESC
+                LIMIT 1
+                """,
+                tool, target, params_hash
+            )
+            
+            if not row:
+                return None
+            
+            # Reconstruct ToolResult from database row
+            # (implementation details omitted for brevity)
+            
+            return None  # Placeholder
+    
+    def _hash_params(self, params: Dict[str, Any]) -> str:
+        """Generate consistent hash of parameters"""
+        param_str = json.dumps(params, sort_keys=True)
+        return hashlib.md5(param_str.encode()).hexdigest()
+```
+
+## MCP Server Integration
+
+```python
+# server.py
+from mcp.server import Server
+from mcp.types import Tool, TextContent
+from core.scope_validator import ScopeValidator
+from core.result_store import ResultStore
+from core.logger import AuditLogger
+from tools.web.nuclei_wrapper import NucleiWrapper
+from tools.infra.nmap_wrapper import NmapWrapper
+from pathlib import Path
+import json
+
+class SecurityMCPServer:
+    def __init__(self):
+        self.server = Server("security-automation")
+        self.scope_validator = ScopeValidator(Path("config/scope.yaml"))
+        self.result_store = ResultStore("postgresql://user:pass@localhost/security")
+        self.logger = AuditLogger(Path("logs/"))
+        
+        # Initialize tools
+        self.tools = {
+            "nuclei": NucleiWrapper(
+                self.scope_validator, 
+                self.result_store, 
+                self.logger
+            ),
+            "nmap": NmapWrapper(
+                self.scope_validator,
+                self.result_store,
+                self.logger
+            ),
+            # Add more tools here...
+        }
+        
+        self._register_tools()
+    
+    def _register_tools(self):
+        """Register all tools with MCP server"""
+        
+        @self.server.list_tools()
+        async def list_tools():
+            return [
+                Tool(
+                    name="nuclei_scan",
+                    description="Run Nuclei vulnerability scanner on target",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string"},
+                            "templates": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            },
+                            "severity": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        },
+                        "required": ["target"]
+                    }
+                ),
+                Tool(
+                    name="nmap_scan",
+                    description="Run Nmap port scan on target",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string"},
+                            "ports": {"type": "string"},
+                            "scan_type": {"type": "string"}
+                        },
+                        "required": ["target"]
+                    }
+                )
+            ]
+        
+        @self.server.call_tool()
+        async def call_tool(name: str, arguments: dict):
+            if name == "nuclei_scan":
+                result = await self.tools["nuclei"].execute(**arguments)
+            elif name == "nmap_scan":
+                result = await self.tools["nmap"].execute(**arguments)
+            else:
+                return [TextContent(type="text", text=f"Unknown tool: {name}")]
+            
+            # Format result for AI consumption
+            summary = f"""
+Scan completed: {result.tool_name} on {result.target}
+Status: {'Success' if result.success else 'Failed'}
+Execution time: {result.execution_time:.2f}s
+Findings: {len(result.findings)}
+
+{self._format_findings(result.findings)}
+            """
+            
+            return [TextContent(type="text", text=summary)]
+    
+    def _format_findings(self, findings):
+        """Format findings for human-readable output"""
+        if not findings:
+            return "No vulnerabilities found."
+        
+        output = []
+        for finding in findings[:10]:  # Limit to top 10
+            output.append(f"- [{finding.get('severity', 'info').upper()}] {finding.get('name', 'Unknown')}")
+        
+        if len(findings) > 10:
+            output.append(f"... and {len(findings) - 10} more findings")
+        
+        return "\n".join(output)
+
+async def main():
+    server = SecurityMCPServer()
+    await server.result_store.connect()
+    
+    from mcp.server.stdio import stdio_server
+    async with stdio_server() as (read_stream, write_stream):
+        await server.server.run(
+            read_stream, 
+            write_stream,
+            server.server.create_initialization_options()
+        )
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+```
+
+## Replication Strategy: Docker Deployment
+
+```dockerfile
+# Dockerfile
+FROM python:3.11-slim
+
+# Install security tools
+RUN apt-get update && apt-get install -y \
+    nmap \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Nuclei
+RUN curl -L https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_linux_amd64.zip -o nuclei.zip \
+    && unzip nuclei.zip \
+    && mv nuclei /usr/local/bin/ \
+    && chmod +x /usr/local/bin/nuclei \
+    && rm nuclei.zip
+
+# Update Nuclei templates
+RUN nuclei -update-templates
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY . .
+
+# Run MCP server
+CMD ["python", "server.py"]
+```
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: security
+      POSTGRES_USER: secops
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "5432:5432"
+  
+  mcp-server:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://secops:${DB_PASSWORD}@postgres:5432/security
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - ./results:/app/results
+    depends_on:
+      - postgres
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:
+```
+
+## Quick Start Replication
+
+```bash
+#!/bin/bash
+# deploy.sh - One-command deployment
+
+# 1. Clone and setup
+git clone https://github.com/your-org/mcp-security-platform
+cd mcp-security-platform
+
+# 2. Configure scope
+cp config/scope.example.yaml config/scope.yaml
+# Edit config/scope.yaml with your authorized targets
+
+# 3. Set secrets
+export DB_PASSWORD=$(openssl rand -base64 32)
+
+# 4. Deploy
+docker-compose up -d
+
+# 5. Verify
+docker-compose logs -f mcp-server
+```
+
+Want me to build out:
+
+1. **More tool wrappers** (FFuf, SQLMap, Metasploit RPC)?
+1. **Workflow orchestrator** (automated recon → vuln scan → exploit validation)?
+1. **Report generator** (HackerOne/Bugcrowd templates)?
+1. **Web dashboard** (FastAPI + React for viewing results)?
+
+Which component should we tackle first?​​​​​​​​​​​​​​​​
