@@ -1,0 +1,18 @@
+Rate Limits
+Getting StartedRate Limits
+To ensure a pleasant platform experience for all our users, we have implemented several rate limits in our API. Customers who send too many requests may see an error show up with the status code: 429. We have the following rate limits in place:
+
+Read operations: 600 requests per minute (except for report pages: 300 requests/minute).
+Write operations: 25 requests per 20 seconds.
+Error Responses
+Getting StartedError Responses
+Error Code	Meaning	Description
+400	Bad Request	Request does not conform with the specification. Please see the endpoint's documentation for further instructions.
+401	Unauthorized	The client sent a request without proper identification, or the username provided is incorrect. Please note that your username is not an email address. More information about this error can be found in the Authentication section.
+403	Forbidden	The API token does not grant the client access to perform this action. This can happen in case where the client requests a resource that belongs to another program or account.
+404	Not Found	The requested resource is not found. The client might be using outdated information to identify the resource.
+406	Not Acceptable	This error is returned when the client requests our API to respond in a format that we haven't implemented yet. The current version of the API only supports responses to be returned when the client requests application/javascript. The good news is that most clients do this by default, so you shouldn't see this error very often.
+422	Unprocessable Entity	The server understands the content type of the request entity, and the syntax of the request entity is correct, but it was unable to process the contained instructions.
+429	Too Many Requests	The client sent too many requests, please review our rate limits to make sure you're not sending more requests than the limit indicates.
+500	Internal Server Error	This means that there's an error on our side. Our engineering team is notified of these errors, so we try to come up with a solution as soon as possible. If the error persists, please contact https://support.hackerone.com/
+503	Service Unavailable	Seems like our servers are offline. You can check our server status at www.hackeronestatus.com.
