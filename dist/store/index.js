@@ -1,3 +1,8 @@
+// Maximum limits to prevent DoS attacks
+const MAX_AGENTS = 1000;
+const MAX_OPERATIONS = 1000;
+const MAX_TARGETS = 10000;
+const MAX_FINDINGS = 100000;
 class DataStore {
     agents = new Map();
     operations = new Map();
@@ -5,6 +10,12 @@ class DataStore {
     findings = new Map();
     // Agent methods
     addAgent(agent) {
+        if (this.agents.size >= MAX_AGENTS) {
+            throw new Error(`Maximum number of agents (${MAX_AGENTS}) reached`);
+        }
+        if (this.agents.has(agent.id)) {
+            throw new Error(`Agent with id ${agent.id} already exists`);
+        }
         this.agents.set(agent.id, agent);
     }
     getAgent(id) {
@@ -15,18 +26,28 @@ class DataStore {
     }
     updateAgent(id, updates) {
         const agent = this.agents.get(id);
-        if (agent) {
-            const updated = { ...agent, ...updates };
-            this.agents.set(id, updated);
-            return updated;
+        if (!agent) {
+            return undefined;
         }
-        return undefined;
+        // Prevent updating the id
+        if (updates.id && updates.id !== id) {
+            throw new Error('Cannot update agent id');
+        }
+        const updated = { ...agent, ...updates, id };
+        this.agents.set(id, updated);
+        return updated;
     }
     deleteAgent(id) {
         return this.agents.delete(id);
     }
     // Operation methods
     addOperation(operation) {
+        if (this.operations.size >= MAX_OPERATIONS) {
+            throw new Error(`Maximum number of operations (${MAX_OPERATIONS}) reached`);
+        }
+        if (this.operations.has(operation.id)) {
+            throw new Error(`Operation with id ${operation.id} already exists`);
+        }
         this.operations.set(operation.id, operation);
     }
     getOperation(id) {
@@ -37,18 +58,28 @@ class DataStore {
     }
     updateOperation(id, updates) {
         const operation = this.operations.get(id);
-        if (operation) {
-            const updated = { ...operation, ...updates };
-            this.operations.set(id, updated);
-            return updated;
+        if (!operation) {
+            return undefined;
         }
-        return undefined;
+        // Prevent updating the id
+        if (updates.id && updates.id !== id) {
+            throw new Error('Cannot update operation id');
+        }
+        const updated = { ...operation, ...updates, id };
+        this.operations.set(id, updated);
+        return updated;
     }
     deleteOperation(id) {
         return this.operations.delete(id);
     }
     // Target methods
     addTarget(target) {
+        if (this.targets.size >= MAX_TARGETS) {
+            throw new Error(`Maximum number of targets (${MAX_TARGETS}) reached`);
+        }
+        if (this.targets.has(target.id)) {
+            throw new Error(`Target with id ${target.id} already exists`);
+        }
         this.targets.set(target.id, target);
     }
     getTarget(id) {
@@ -59,18 +90,28 @@ class DataStore {
     }
     updateTarget(id, updates) {
         const target = this.targets.get(id);
-        if (target) {
-            const updated = { ...target, ...updates };
-            this.targets.set(id, updated);
-            return updated;
+        if (!target) {
+            return undefined;
         }
-        return undefined;
+        // Prevent updating the id
+        if (updates.id && updates.id !== id) {
+            throw new Error('Cannot update target id');
+        }
+        const updated = { ...target, ...updates, id };
+        this.targets.set(id, updated);
+        return updated;
     }
     deleteTarget(id) {
         return this.targets.delete(id);
     }
     // Finding methods
     addFinding(finding) {
+        if (this.findings.size >= MAX_FINDINGS) {
+            throw new Error(`Maximum number of findings (${MAX_FINDINGS}) reached`);
+        }
+        if (this.findings.has(finding.id)) {
+            throw new Error(`Finding with id ${finding.id} already exists`);
+        }
         this.findings.set(finding.id, finding);
     }
     getFinding(id) {

@@ -4,11 +4,11 @@ import { store } from '../store/index.js';
 import { OperationPhase, OperationStatus } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 const CreateOperationSchema = z.object({
-    name: z.string().min(1),
-    description: z.string().min(1),
+    name: z.string().min(1).max(255),
+    description: z.string().min(1).max(5000),
     targetId: z.string().uuid(),
     phase: z.nativeEnum(OperationPhase).optional(),
-    agentIds: z.array(z.string().uuid()).optional(),
+    agentIds: z.array(z.string().uuid()).max(100).optional(),
 });
 const GetOperationSchema = z.object({
     operationId: z.string().uuid(),
@@ -20,7 +20,7 @@ const ListOperationsSchema = z.object({
 const UpdateOperationSchema = z.object({
     operationId: z.string().uuid(),
     phase: z.nativeEnum(OperationPhase).optional(),
-    description: z.string().optional(),
+    description: z.string().max(5000).optional(),
 });
 function handleCreateOperation(args) {
     const parsed = CreateOperationSchema.safeParse(args);
@@ -249,7 +249,5 @@ export function handleOperationTool(name, args) {
         default:
             return null;
     }
-}
-export function registerOperationTools(server) {
 }
 //# sourceMappingURL=operation-tools.js.map

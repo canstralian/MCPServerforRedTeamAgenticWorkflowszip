@@ -9,7 +9,10 @@ interface CachedConnection {
 }
 
 const connectionCache: Map<string, CachedConnection> = new Map();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+
+// Configuration constants
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000; // 1 minute buffer before expiry
 
 function getXReplitToken(): string {
   const token = process.env.REPL_IDENTITY
@@ -26,6 +29,10 @@ function getXReplitToken(): string {
 
 async function refreshAndFetchConnection(connectorName: string): Promise<Record<string, unknown>> {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  if (!hostname) {
+    throw new Error('REPLIT_CONNECTORS_HOSTNAME environment variable is not set');
+  }
+  
   const xReplitToken = getXReplitToken();
   
   const refreshResponse = await fetch(
@@ -91,8 +98,7 @@ function getTokenExpiryInfo(settings: Record<string, unknown>): TokenExpiryInfo 
   }
   
   const expiryTime = new Date(expiresAt).getTime();
-  const bufferMs = 60 * 1000;
-  return { hasExpiry: true, isExpiring: expiryTime <= Date.now() + bufferMs };
+  return { hasExpiry: true, isExpiring: expiryTime <= Date.now() + TOKEN_EXPIRY_BUFFER_MS };
 }
 
 function shouldRefreshToken(connectorName: string, settings: Record<string, unknown>): boolean {
@@ -134,6 +140,9 @@ async function fetchConnectionSettings(connectorName: string, forceRefresh = fal
   }
 
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  if (!hostname) {
+    throw new Error('REPLIT_CONNECTORS_HOSTNAME environment variable is not set');
+  }
   const xReplitToken = getXReplitToken();
 
   const response = await fetch(

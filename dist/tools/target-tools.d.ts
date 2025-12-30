@@ -1,4 +1,3 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { TargetType, VulnerabilitySeverity } from '../types/index.js';
 export declare const targetTools: ({
     name: string;
@@ -181,5 +180,4 @@ export declare function handleTargetTool(name: string, args: Record<string, unkn
         text: string;
     }>;
 } | null;
-export declare function registerTargetTools(server: Server): void;
 //# sourceMappingURL=target-tools.d.ts.map

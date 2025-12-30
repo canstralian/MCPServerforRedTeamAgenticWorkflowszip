@@ -4,18 +4,18 @@ import { store } from '../store/index.js';
 import { AgentType, AgentStatus } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 const CreateAgentSchema = z.object({
-    name: z.string().min(1),
+    name: z.string().min(1).max(255),
     type: z.nativeEnum(AgentType),
-    capabilities: z.array(z.string()),
+    capabilities: z.array(z.string().max(255)).max(100),
 });
 const GetAgentSchema = z.object({
     agentId: z.string().uuid(),
 });
 const UpdateAgentSchema = z.object({
     agentId: z.string().uuid(),
-    name: z.string().optional(),
+    name: z.string().min(1).max(255).optional(),
     status: z.nativeEnum(AgentStatus).optional(),
-    capabilities: z.array(z.string()).optional(),
+    capabilities: z.array(z.string().max(255)).max(100).optional(),
 });
 const ListAgentsSchema = z.object({
     status: z.nativeEnum(AgentStatus).optional(),
@@ -210,7 +210,5 @@ export function handleAgentTool(name, args) {
         default:
             return null;
     }
-}
-export function registerAgentTools(server) {
 }
 //# sourceMappingURL=agent-tools.js.map

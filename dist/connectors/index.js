@@ -3,7 +3,9 @@ import { LinearClient } from '@linear/sdk';
 import { Client } from '@notionhq/client';
 import { Octokit } from '@octokit/rest';
 const connectionCache = new Map();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+// Configuration constants
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000; // 1 minute buffer before expiry
 function getXReplitToken() {
     const token = process.env.REPL_IDENTITY
         ? 'repl ' + process.env.REPL_IDENTITY
@@ -17,6 +19,9 @@ function getXReplitToken() {
 }
 async function refreshAndFetchConnection(connectorName) {
     const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+    if (!hostname) {
+        throw new Error('REPLIT_CONNECTORS_HOSTNAME environment variable is not set');
+    }
     const xReplitToken = getXReplitToken();
     const refreshResponse = await fetch(`https://${hostname}/api/v2/connection/refresh`, {
         method: 'POST',
@@ -60,8 +65,7 @@ function getTokenExpiryInfo(settings) {
         return { hasExpiry: false, isExpiring: false };
     }
     const expiryTime = new Date(expiresAt).getTime();
-    const bufferMs = 60 * 1000;
-    return { hasExpiry: true, isExpiring: expiryTime <= Date.now() + bufferMs };
+    return { hasExpiry: true, isExpiring: expiryTime <= Date.now() + TOKEN_EXPIRY_BUFFER_MS };
 }
 function shouldRefreshToken(connectorName, settings) {
     if (!OAUTH_CONNECTORS.has(connectorName)) {
@@ -98,6 +102,9 @@ async function fetchConnectionSettings(connectorName, forceRefresh = false) {
         }
     }
     const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+    if (!hostname) {
+        throw new Error('REPLIT_CONNECTORS_HOSTNAME environment variable is not set');
+    }
     const xReplitToken = getXReplitToken();
     const response = await fetch(`https://${hostname}/api/v2/connection?include_secrets=true&connector_names=${connectorName}`, {
         headers: {

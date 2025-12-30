@@ -1,4 +1,3 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { FindingType, VulnerabilitySeverity } from '../types/index.js';
 export declare const analysisTools: ({
     name: string;
@@ -142,5 +141,4 @@ export declare function handleAnalysisTool(name: string, args: Record<string, un
         text: string;
     }>;
 } | null;
-export declare function registerAnalysisTools(server: Server): void;
 //# sourceMappingURL=analysis-tools.d.ts.map

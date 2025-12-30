@@ -1,4 +1,3 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { store } from '../store/index.js';
@@ -6,9 +5,9 @@ import { Agent, AgentType, AgentStatus } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 
 const CreateAgentSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).max(255),
   type: z.nativeEnum(AgentType),
-  capabilities: z.array(z.string()),
+  capabilities: z.array(z.string().max(255)).max(100),
 });
 
 const GetAgentSchema = z.object({
@@ -17,9 +16,9 @@ const GetAgentSchema = z.object({
 
 const UpdateAgentSchema = z.object({
   agentId: z.string().uuid(),
-  name: z.string().optional(),
+  name: z.string().min(1).max(255).optional(),
   status: z.nativeEnum(AgentStatus).optional(),
-  capabilities: z.array(z.string()).optional(),
+  capabilities: z.array(z.string().max(255)).max(100).optional(),
 });
 
 const ListAgentsSchema = z.object({
@@ -224,7 +223,4 @@ export function handleAgentTool(name: string, args: Record<string, unknown>): { 
     default:
       return null;
   }
-}
-
-export function registerAgentTools(server: Server): void {
 }

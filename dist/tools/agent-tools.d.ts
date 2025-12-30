@@ -1,4 +1,3 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { AgentType, AgentStatus } from '../types/index.js';
 export declare const agentTools: ({
     name: string;
@@ -99,5 +98,4 @@ export declare function handleAgentTool(name: string, args: Record<string, unkno
         text: string;
     }>;
 } | null;
-export declare function registerAgentTools(server: Server): void;
 //# sourceMappingURL=agent-tools.d.ts.map

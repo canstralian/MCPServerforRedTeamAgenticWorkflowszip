@@ -1,4 +1,3 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { OperationPhase, OperationStatus } from '../types/index.js';
 export declare const operationTools: ({
     name: string;
@@ -111,5 +110,4 @@ export declare function handleOperationTool(name: string, args: Record<string, u
         text: string;
     }>;
 } | null;
-export declare function registerOperationTools(server: Server): void;
 //# sourceMappingURL=operation-tools.d.ts.map

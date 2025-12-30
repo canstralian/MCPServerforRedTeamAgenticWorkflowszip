@@ -1,4 +1,3 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { store } from '../store/index.js';
@@ -10,10 +9,10 @@ const AddFindingSchema = z.object({
   agentId: z.string().uuid(),
   type: z.nativeEnum(FindingType),
   severity: z.nativeEnum(VulnerabilitySeverity),
-  title: z.string().min(1),
-  description: z.string().min(1),
-  evidence: z.array(z.string()).optional(),
-  mitigation: z.string().optional(),
+  title: z.string().min(1).max(255),
+  description: z.string().min(1).max(10000),
+  evidence: z.array(z.string().max(5000)).max(100).optional(),
+  mitigation: z.string().max(5000).optional(),
 });
 
 const ListFindingsSchema = z.object({
@@ -312,7 +311,4 @@ export function handleAnalysisTool(name: string, args: Record<string, unknown>):
     default:
       return null;
   }
-}
-
-export function registerAnalysisTools(server: Server): void {
 }
