@@ -5,6 +5,17 @@ import { registerResources } from './resources/index.js';
 import { logger } from './utils/logger.js';
 import { config } from './config/index.js';
 
+/**
+ * MCP Red Team Server main entry point.
+ * 
+ * Note: This implementation uses the Server class from @modelcontextprotocol/sdk v1.25.1,
+ * which is marked as deprecated in favor of McpServer for new implementations. However,
+ * the Server class is still fully supported and backward-compatible with the SDK.
+ * 
+ * The current implementation has been tested and verified to work correctly with SDK 1.25.1.
+ * A future refactoring to use McpServer with the high-level registerTool/registerResource
+ * APIs would be beneficial but is not required for compatibility.
+ */
 async function main() {
   logger.info('Starting MCP Red Team Server...');
 
