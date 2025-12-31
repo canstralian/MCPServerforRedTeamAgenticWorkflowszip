@@ -8,9 +8,13 @@ import {
 /**
  * Test helper to invoke a request handler on the server.
  * 
- * This function provides a safe way to test server request handling without
- * directly accessing private members. It simulates how the SDK internally
- * routes requests to registered handlers.
+ * NOTE: This is a workaround for testing the low-level Server class, which does not
+ * provide a public API for invoking handlers directly. This approach accesses private
+ * members and is dependent on internal implementation details. This is a known
+ * limitation when testing with the low-level Server API.
+ * 
+ * For new implementations, consider using McpServer which provides a better testing
+ * interface through its public API.
  * 
  * @param server - The MCP server instance
  * @param request - The request to send
@@ -19,7 +23,6 @@ import {
 export async function invokeRequestHandler(server: Server, request: Request): Promise<any> {
   // Access the request handlers map - this is the only way to test the Server class
   // since it doesn't provide a public API for invoking handlers directly.
-  // This is a known limitation of testing with the low-level Server API.
   const handlers = (server as any)._requestHandlers;
   
   if (!handlers) {
