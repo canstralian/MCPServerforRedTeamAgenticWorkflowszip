@@ -5,12 +5,19 @@ import { store } from '../store/index.js';
 import { Operation, OperationPhase, OperationStatus } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 
+// TODO: Add operation template system for common operation types
+// TODO: Implement operation cloning/duplication functionality
+// TODO: Add operation scheduling for future execution
+
 const CreateOperationSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   targetId: z.string().uuid(),
   phase: z.nativeEnum(OperationPhase).optional(),
   agentIds: z.array(z.string().uuid()).optional(),
+  // TODO: Add priority level parameter
+  // TODO: Add estimated duration parameter
+  // TODO: Add tags/categories parameter
 });
 
 const GetOperationSchema = z.object({
@@ -20,13 +27,23 @@ const GetOperationSchema = z.object({
 const ListOperationsSchema = z.object({
   status: z.nativeEnum(OperationStatus).optional(),
   phase: z.nativeEnum(OperationPhase).optional(),
+  // TODO: Add pagination parameters
+  // TODO: Add date range filtering
+  // TODO: Add sorting options
+  // TODO: Add search by name/description
 });
 
 const UpdateOperationSchema = z.object({
   operationId: z.string().uuid(),
   phase: z.nativeEnum(OperationPhase).optional(),
   description: z.string().optional(),
+  // TODO: Add agent assignment updates
+  // TODO: Add status override capability
 });
+
+// TODO: Add schema for operation pause/resume
+// TODO: Add schema for operation rollback
+// TODO: Add schema for adding/removing agents from operation
 
 function handleCreateOperation(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = CreateOperationSchema.safeParse(args);
@@ -34,6 +51,12 @@ function handleCreateOperation(args: Record<string, unknown>): { content: Array<
     return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
   }
   const { name, description, targetId, phase, agentIds } = parsed.data;
+  
+  // TODO: Validate target exists before creating operation
+  // TODO: Validate all agent IDs exist and are available
+  // TODO: Check concurrent operation limit from config
+  // TODO: Generate operation risk assessment based on target/phase
+  // TODO: Create operation change log entry
   
   const operation: Operation = {
     id: uuidv4(),
@@ -48,6 +71,7 @@ function handleCreateOperation(args: Record<string, unknown>): { content: Array<
   };
   store.addOperation(operation);
   logger.info(`Created operation: ${operation.id}`);
+  // TODO: Send operation creation notification/webhook
   return { content: [{ type: 'text', text: JSON.stringify(operation, null, 2) }] };
 }
 
@@ -63,6 +87,9 @@ function handleListOperations(args: Record<string, unknown>): { content: Array<{
   if (parsed.data.phase) {
     operations = operations.filter((o) => o.phase === parsed.data.phase);
   }
+  // TODO: Implement pagination for large operation lists
+  // TODO: Add operation summary statistics
+  // TODO: Include progress percentage for in-progress operations
   return { content: [{ type: 'text', text: JSON.stringify(operations, null, 2) }] };
 }
 
@@ -75,6 +102,11 @@ function handleGetOperation(args: Record<string, unknown>): { content: Array<{ t
   if (!operation) {
     return { content: [{ type: 'text', text: 'Operation not found' }] };
   }
+  // TODO: Include target details in response
+  // TODO: Include assigned agent details in response
+  // TODO: Include finding summary statistics
+  // TODO: Calculate and include operation progress percentage
+  // TODO: Include timeline of phase transitions
   return { content: [{ type: 'text', text: JSON.stringify(operation, null, 2) }] };
 }
 
@@ -84,6 +116,10 @@ function handleUpdateOperation(args: Record<string, unknown>): { content: Array<
     return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
   }
   const { operationId, ...updates } = parsed.data;
+  // TODO: Validate phase transitions (certain phases must be sequential)
+  // TODO: Create audit log entry for operation updates
+  // TODO: Send notification on phase change
+  // TODO: Validate operation is not completed before allowing updates
   const operation = store.updateOperation(operationId, updates as Partial<Operation>);
   if (!operation) {
     return { content: [{ type: 'text', text: 'Operation not found' }] };
@@ -101,11 +137,17 @@ function handleStartOperation(args: Record<string, unknown>): { content: Array<{
   if (!operation) {
     return { content: [{ type: 'text', text: 'Operation not found' }] };
   }
+  // TODO: Validate operation has at least one agent assigned
+  // TODO: Validate target is still available
+  // TODO: Check concurrent operation limits
+  // TODO: Initialize operation monitoring/tracking
+  // TODO: Activate assigned agents automatically
   const updated = store.updateOperation(parsed.data.operationId, {
     status: OperationStatus.IN_PROGRESS,
     startTime: new Date(),
   });
   logger.info(`Started operation: ${parsed.data.operationId}`);
+  // TODO: Send operation start notification
   return { content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }] };
 }
 
@@ -118,6 +160,11 @@ function handleCompleteOperation(args: Record<string, unknown>): { content: Arra
   if (!operation) {
     return { content: [{ type: 'text', text: 'Operation not found' }] };
   }
+  // TODO: Generate final operation report automatically
+  // TODO: Update assigned agent statuses to COMPLETED
+  // TODO: Calculate operation success metrics
+  // TODO: Trigger archival process for operation data
+  // TODO: Send operation completion notification with summary
   const updated = store.updateOperation(parsed.data.operationId, {
     status: OperationStatus.COMPLETED,
     endTime: new Date(),
@@ -131,6 +178,10 @@ function handleDeleteOperation(args: Record<string, unknown>): { content: Array<
   if (!parsed.success) {
     return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
   }
+  // TODO: Prevent deletion of in-progress operations without confirmation
+  // TODO: Archive operation data instead of hard delete
+  // TODO: Cleanup associated findings and agent assignments
+  // TODO: Send deletion notification
   const success = store.deleteOperation(parsed.data.operationId);
   if (!success) {
     return { content: [{ type: 'text', text: 'Operation not found' }] };
@@ -138,6 +189,15 @@ function handleDeleteOperation(args: Record<string, unknown>): { content: Array<
   logger.info(`Deleted operation: ${parsed.data.operationId}`);
   return { content: [{ type: 'text', text: 'Operation deleted successfully' }] };
 }
+
+// TODO: Add handlePauseOperation for temporarily halting operations
+// TODO: Add handleResumeOperation to continue paused operations
+// TODO: Add handleCancelOperation with cleanup logic
+// TODO: Add handleCloneOperation to duplicate operation configuration
+// TODO: Add handleGetOperationTimeline for phase transition history
+// TODO: Add handleAddAgentToOperation for dynamic agent assignment
+// TODO: Add handleRemoveAgentFromOperation
+// TODO: Add handleGetOperationMetrics for performance/progress data
 
 export const operationTools = [
   {
