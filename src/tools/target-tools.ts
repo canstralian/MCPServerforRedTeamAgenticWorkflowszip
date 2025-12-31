@@ -5,6 +5,10 @@ import { store } from '../store/index.js';
 import { Target, TargetType, Vulnerability, VulnerabilitySeverity } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 
+// TODO: Add target import from external sources (Shodan, Censys, etc.)
+// TODO: Implement target discovery automation tools
+// TODO: Add target relationship mapping (network topology)
+
 const CreateTargetSchema = z.object({
   name: z.string().min(1),
   type: z.nativeEnum(TargetType),
@@ -12,6 +16,9 @@ const CreateTargetSchema = z.object({
   domain: z.string().optional(),
   ports: z.array(z.number()).optional(),
   metadata: z.record(z.unknown()).optional(),
+  // TODO: Add criticality/priority level
+  // TODO: Add owner/team assignment
+  // TODO: Add compliance framework tags
 });
 
 const GetTargetSchema = z.object({
@@ -20,6 +27,10 @@ const GetTargetSchema = z.object({
 
 const ListTargetsSchema = z.object({
   type: z.nativeEnum(TargetType).optional(),
+  // TODO: Add pagination support
+  // TODO: Add search by name/domain/IP
+  // TODO: Add filtering by criticality
+  // TODO: Add sorting options
 });
 
 const UpdateTargetSchema = z.object({
@@ -28,6 +39,8 @@ const UpdateTargetSchema = z.object({
   ipAddress: z.string().optional(),
   domain: z.string().optional(),
   ports: z.array(z.number()).optional(),
+  // TODO: Add metadata update capability
+  // TODO: Add tag management
 });
 
 const AddVulnerabilitySchema = z.object({
@@ -38,7 +51,14 @@ const AddVulnerabilitySchema = z.object({
   description: z.string().min(1),
   exploitable: z.boolean().optional(),
   mitigation: z.string().optional(),
+  // TODO: Add CVE identifier field
+  // TODO: Add CWE categorization
+  // TODO: Add affected component/version
 });
+
+// TODO: Add schema for target scanning configuration
+// TODO: Add schema for target asset inventory
+// TODO: Add schema for technology stack detection
 
 function handleCreateTarget(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = CreateTargetSchema.safeParse(args);
@@ -46,6 +66,12 @@ function handleCreateTarget(args: Record<string, unknown>): { content: Array<{ t
     return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
   }
   const { name, type, ipAddress, domain, ports, metadata } = parsed.data;
+  
+  // TODO: Validate IP address format if provided
+  // TODO: Validate domain format if provided
+  // TODO: Check for duplicate targets (same IP/domain)
+  // TODO: Perform initial reconnaissance/discovery on target
+  // TODO: Integrate with threat intelligence feeds for risk scoring
   
   const target: Target = {
     id: uuidv4(),
@@ -59,6 +85,7 @@ function handleCreateTarget(args: Record<string, unknown>): { content: Array<{ t
   };
   store.addTarget(target);
   logger.info(`Created target: ${target.id}`);
+  // TODO: Send target creation notification
   return { content: [{ type: 'text', text: JSON.stringify(target, null, 2) }] };
 }
 
@@ -71,6 +98,10 @@ function handleListTargets(args: Record<string, unknown>): { content: Array<{ ty
   if (parsed.data.type) {
     targets = targets.filter((t) => t.type === parsed.data.type);
   }
+  // TODO: Implement pagination
+  // TODO: Include vulnerability count summary for each target
+  // TODO: Add risk score calculation
+  // TODO: Include active operation count per target
   return { content: [{ type: 'text', text: JSON.stringify(targets, null, 2) }] };
 }
 
@@ -83,6 +114,11 @@ function handleGetTarget(args: Record<string, unknown>): { content: Array<{ type
   if (!target) {
     return { content: [{ type: 'text', text: 'Target not found' }] };
   }
+  // TODO: Include related operations in response
+  // TODO: Include threat intelligence data
+  // TODO: Include last scan/assessment timestamp
+  // TODO: Include technology stack information
+  // TODO: Calculate and include overall risk score
   return { content: [{ type: 'text', text: JSON.stringify(target, null, 2) }] };
 }
 
@@ -92,6 +128,9 @@ function handleUpdateTarget(args: Record<string, unknown>): { content: Array<{ t
     return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
   }
   const { targetId, ...updates } = parsed.data;
+  // TODO: Validate IP/domain format if being updated
+  // TODO: Create audit trail for target updates
+  // TODO: Re-run threat intelligence checks on update
   const target = store.updateTarget(targetId, updates as Partial<Target>);
   if (!target) {
     return { content: [{ type: 'text', text: 'Target not found' }] };
@@ -111,6 +150,12 @@ function handleAddVulnerability(args: Record<string, unknown>): { content: Array
   if (!target) {
     return { content: [{ type: 'text', text: 'Target not found' }] };
   }
+  
+  // TODO: Check for duplicate vulnerabilities
+  // TODO: Validate CVSS score matches severity level
+  // TODO: Link to CVE database if CVE ID provided
+  // TODO: Auto-generate finding from vulnerability
+  // TODO: Send vulnerability alert notification
   
   const vulnerability: Vulnerability = {
     id: uuidv4(),
@@ -133,6 +178,9 @@ function handleDeleteTarget(args: Record<string, unknown>): { content: Array<{ t
   if (!parsed.success) {
     return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
   }
+  // TODO: Check if target is being used in active operations
+  // TODO: Archive target data instead of hard delete
+  // TODO: Cleanup associated vulnerabilities and findings
   const success = store.deleteTarget(parsed.data.targetId);
   if (!success) {
     return { content: [{ type: 'text', text: 'Target not found' }] };
@@ -140,6 +188,15 @@ function handleDeleteTarget(args: Record<string, unknown>): { content: Array<{ t
   logger.info(`Deleted target: ${parsed.data.targetId}`);
   return { content: [{ type: 'text', text: 'Target deleted successfully' }] };
 }
+
+// TODO: Add handleScanTarget for automated vulnerability scanning
+// TODO: Add handleGetTargetTechnologies for technology stack detection
+// TODO: Add handleGetTargetRiskScore for risk assessment
+// TODO: Add handleUpdateVulnerability for modifying existing vulnerabilities
+// TODO: Add handleRemoveVulnerability for false positive removal
+// TODO: Add handleExportTarget for exporting target data
+// TODO: Add handleImportTargets for bulk target import
+// TODO: Add handleGetTargetHistory for tracking target changes over time
 
 export const targetTools = [
   {

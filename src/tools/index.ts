@@ -10,12 +10,22 @@ import { analysisTools, handleAnalysisTool } from './analysis-tools.js';
 import { integrationTools, handleIntegrationTool } from './integration-tools.js';
 import { connectorTools, handleConnectorTool } from './connector-tools.js';
 
+// TODO: Add tool execution timeout handling to prevent hanging operations
+// TODO: Implement tool execution rate limiting per workflow stage
+// TODO: Add tool dependency validation (ensure prerequisites are met)
+// TODO: Add tool execution audit logging for compliance
+// TODO: Implement tool versioning system for backward compatibility
+// TODO: Add tool discovery API for dynamic tool registration
+// TODO: Implement tool permissions/RBAC system
+
 export enum WorkflowStage {
   PLANNING = 'planning',
   RECONNAISSANCE = 'reconnaissance',
   EXPLOITATION = 'exploitation',
   POST_EXPLOITATION = 'post_exploitation',
   REPORTING = 'reporting',
+  // TODO: Add REMEDIATION stage for fixing vulnerabilities
+  // TODO: Add VALIDATION stage for verifying fixes
 }
 
 interface ToolDefinition {
@@ -29,6 +39,9 @@ interface ToolDefinition {
   stage: WorkflowStage;
 }
 
+// TODO: Make toolStageMapping configurable via external configuration
+// TODO: Add validation to ensure all tools have a stage mapping
+// TODO: Consider allowing tools to belong to multiple stages
 const toolStageMapping: Record<string, WorkflowStage> = {
   create_agent: WorkflowStage.PLANNING,
   list_agents: WorkflowStage.PLANNING,
@@ -120,8 +133,14 @@ const toolStageMapping: Record<string, WorkflowStage> = {
   github_create_issue: WorkflowStage.POST_EXPLOITATION,
   github_get_file: WorkflowStage.RECONNAISSANCE,
   github_create_file: WorkflowStage.POST_EXPLOITATION,
+  // TODO: Add more GitHub tools (PR management, code scanning)
+  // TODO: Add Jira integration tools
+  // TODO: Add Slack/Teams notification tools
+  // TODO: Add CI/CD pipeline integration tools
 };
 
+// TODO: Add runtime validation for tool schema compliance
+// TODO: Implement tool schema auto-generation from TypeScript types
 function addStageToTools(tools: Array<{ name: string; description: string; inputSchema: unknown }>): ToolDefinition[] {
   return tools.map(tool => ({
     ...tool,
@@ -147,6 +166,8 @@ const toolsByStage = {
   [WorkflowStage.REPORTING]: allToolsWithStages.filter(t => t.stage === WorkflowStage.REPORTING),
 };
 
+// TODO: Add caching for toolsByStage calculation
+// TODO: Add tool execution metrics (count, duration, success rate)
 export function getToolsByStage(stage: WorkflowStage): ToolDefinition[] {
   return toolsByStage[stage];
 }
@@ -156,6 +177,9 @@ export function getAllToolsOrganized(): Record<WorkflowStage, ToolDefinition[]> 
 }
 
 export function registerTools(server: Server): void {
+  // TODO: Add tool registration validation to ensure no duplicate tool names
+  // TODO: Add OpenAPI/Swagger spec generation for tools
+  // TODO: Implement tool deprecation warnings for legacy tools
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const toolsWithMetadata = allToolsWithStages.map(tool => ({
       name: tool.name,
@@ -168,6 +192,13 @@ export function registerTools(server: Server): void {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     const typedArgs = args as Record<string, unknown>;
+
+    // TODO: Add request validation and sanitization
+    // TODO: Add tool execution metrics and monitoring
+    // TODO: Implement circuit breaker for failing tools
+    // TODO: Add request/response logging for debugging
+    // TODO: Implement async tool execution with callbacks for long-running operations
+    // TODO: Add tool execution retries with exponential backoff
 
     let result = handleAgentTool(name, typedArgs);
     if (result) return result;
@@ -187,6 +218,8 @@ export function registerTools(server: Server): void {
     const connectorResult = await handleConnectorTool(name, typedArgs);
     if (connectorResult) return connectorResult;
 
+    // TODO: Add better error handling with specific error codes
+    // TODO: Suggest similar tool names when tool not found (fuzzy matching)
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }] };
   });
 }

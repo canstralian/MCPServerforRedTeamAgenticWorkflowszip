@@ -5,6 +5,10 @@ import { store } from '../store/index.js';
 import { Finding, FindingType, VulnerabilitySeverity } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 
+// TODO: Add finding export functionality (PDF, CSV, JSON)
+// TODO: Implement finding templates for common vulnerability types
+// TODO: Add finding correlation engine to identify attack chains
+
 const AddFindingSchema = z.object({
   operationId: z.string().uuid(),
   agentId: z.string().uuid(),
@@ -14,12 +18,19 @@ const AddFindingSchema = z.object({
   description: z.string().min(1),
   evidence: z.array(z.string()).optional(),
   mitigation: z.string().optional(),
+  // TODO: Add CVSS vector string parameter
+  // TODO: Add affected component/version
+  // TODO: Add remediation deadline
 });
 
 const ListFindingsSchema = z.object({
   operationId: z.string().uuid().optional(),
   agentId: z.string().uuid().optional(),
   severity: z.nativeEnum(VulnerabilitySeverity).optional(),
+  // TODO: Add pagination parameters
+  // TODO: Add date range filtering
+  // TODO: Add sorting options
+  // TODO: Add finding type filter
 });
 
 const GetFindingSchema = z.object({
@@ -28,7 +39,14 @@ const GetFindingSchema = z.object({
 
 const GenerateReportSchema = z.object({
   operationId: z.string().uuid(),
+  // TODO: Add report format parameter (json, html, pdf, markdown)
+  // TODO: Add report template selection
+  // TODO: Add inclusion/exclusion filters
 });
+
+// TODO: Add schema for finding update/remediation status
+// TODO: Add schema for finding verification
+// TODO: Add schema for custom report generation with templates
 
 function handleAddFinding(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
   const parsed = AddFindingSchema.safeParse(args);
@@ -36,6 +54,12 @@ function handleAddFinding(args: Record<string, unknown>): { content: Array<{ typ
     return { content: [{ type: 'text', text: `Invalid arguments: ${parsed.error.message}` }] };
   }
   const { operationId, agentId, type, severity, title, description, evidence, mitigation } = parsed.data;
+  
+  // TODO: Validate operation and agent exist
+  // TODO: Check for duplicate findings
+  // TODO: Auto-calculate CVSS score based on description
+  // TODO: Link to CVE database if applicable
+  // TODO: Send critical finding alerts
   
   const finding: Finding = {
     id: uuidv4(),
@@ -51,6 +75,8 @@ function handleAddFinding(args: Record<string, unknown>): { content: Array<{ typ
   };
   store.addFinding(finding);
   logger.info(`Added finding: ${finding.id}`);
+  // TODO: Trigger notification for critical/high findings
+  // TODO: Auto-create ticket in issue tracker if configured
   return { content: [{ type: 'text', text: JSON.stringify(finding, null, 2) }] };
 }
 
@@ -70,6 +96,10 @@ function handleListFindings(args: Record<string, unknown>): { content: Array<{ t
   if (parsed.data.severity) {
     findings = findings.filter((f) => f.severity === parsed.data.severity);
   }
+  // TODO: Implement pagination for large finding lists
+  // TODO: Add sorting by severity, timestamp, or type
+  // TODO: Include finding statistics in response
+  // TODO: Group related findings by attack chain
   return { content: [{ type: 'text', text: JSON.stringify(findings, null, 2) }] };
 }
 
@@ -82,6 +112,10 @@ function handleGetFinding(args: Record<string, unknown>): { content: Array<{ typ
   if (!finding) {
     return { content: [{ type: 'text', text: 'Finding not found' }] };
   }
+  // TODO: Include operation and agent details in response
+  // TODO: Include related findings (same vulnerability in different locations)
+  // TODO: Include remediation history and status
+  // TODO: Link to external vulnerability databases
   return { content: [{ type: 'text', text: JSON.stringify(finding, null, 2) }] };
 }
 
@@ -96,6 +130,11 @@ function handleGenerateReport(args: Record<string, unknown>): { content: Array<{
     return { content: [{ type: 'text', text: 'Operation not found' }] };
   }
   
+  // TODO: Support multiple report formats (JSON, HTML, PDF, Markdown)
+  // TODO: Add executive summary section
+  // TODO: Include attack timeline visualization
+  // TODO: Add compliance framework mapping
+  
   const target = store.getTarget(operation.targetId);
   const findings = store.getFindingsByOperation(parsed.data.operationId);
   const agents = operation.agentIds.map(id => store.getAgent(id)).filter(Boolean);
@@ -104,6 +143,10 @@ function handleGenerateReport(args: Record<string, unknown>): { content: Array<{
   const highFindings = findings.filter(f => f.severity === VulnerabilitySeverity.HIGH);
   const mediumFindings = findings.filter(f => f.severity === VulnerabilitySeverity.MEDIUM);
   const lowFindings = findings.filter(f => f.severity === VulnerabilitySeverity.LOW);
+  
+  // TODO: Calculate overall risk score
+  // TODO: Add trend analysis (comparing to previous assessments)
+  // TODO: Include remediation cost estimates
   
   const report = {
     reportId: uuidv4(),
@@ -142,14 +185,22 @@ function handleGenerateReport(args: Record<string, unknown>): { content: Array<{
       mitigation: f.mitigation,
     })),
     recommendations: generateRecommendations(findings),
+    // TODO: Add MITRE ATT&CK technique coverage
+    // TODO: Add compliance gaps section
   };
   
   logger.info(`Generated report for operation: ${parsed.data.operationId}`);
+  // TODO: Store report in database for future reference
+  // TODO: Send report via email if configured
   return { content: [{ type: 'text', text: JSON.stringify(report, null, 2) }] };
 }
 
 function generateRecommendations(findings: Finding[]): string[] {
   const recommendations: string[] = [];
+  
+  // TODO: Use AI/ML to generate more contextual recommendations
+  // TODO: Prioritize recommendations by business impact
+  // TODO: Include remediation timeline suggestions
   
   const findingTypes = new Set(findings.map(f => f.type));
   
@@ -185,6 +236,12 @@ function handleGetStatistics(): { content: Array<{ type: string; text: string }>
   const agents = store.getAllAgents();
   const findings = store.getAllFindings();
   
+  // TODO: Add time-series metrics (trends over time)
+  // TODO: Add agent performance metrics
+  // TODO: Add mean time to detect/remediate metrics
+  // TODO: Calculate overall security posture score
+  // TODO: Add benchmark comparisons
+  
   const stats = {
     overview: {
       totalOperations: operations.length,
@@ -213,10 +270,21 @@ function handleGetStatistics(): { content: Array<{ type: string; text: string }>
       acc[t.type] = (acc[t.type] || 0) + 1;
       return acc;
     }, {} as Record<string, number>),
+    // TODO: Add average findings per operation
+    // TODO: Add most common finding types
+    // TODO: Add agent utilization statistics
   };
   
   return { content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }] };
 }
+
+// TODO: Add handleUpdateFinding for modifying existing findings
+// TODO: Add handleVerifyFinding for marking findings as verified/false positive
+// TODO: Add handleExportFindings for bulk export
+// TODO: Add handleCompareOperations for comparing multiple operation results
+// TODO: Add handleGenerateDashboard for creating visual dashboards
+// TODO: Add handleGetTrends for trend analysis over time
+// TODO: Add handleCalculateRisk for overall risk scoring
 
 export const analysisTools = [
   {
