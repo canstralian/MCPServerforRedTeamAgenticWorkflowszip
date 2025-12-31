@@ -10,12 +10,28 @@ import {
   getGithubClient,
 } from '../connectors/index.js';
 
+// TODO: Add connection pooling for connector clients
+// TODO: Implement connector health monitoring
+// TODO: Add automatic reconnection logic on connection failures
+// TODO: Implement connector usage metrics and analytics
+// TODO: Add more SaaS integrations (Slack, Microsoft Teams, Confluence, etc.)
+// TODO: Add cloud provider integrations (AWS, Azure, GCP security services)
+// TODO: Implement connector authentication caching
+// TODO: Add bulk operation support for efficiency
+// TODO: Implement webhook listeners for real-time updates
+// TODO: Add connector error recovery and fallback mechanisms
+
 interface ToolResponse {
   content: Array<{ type: string; text: string }>;
 }
 
+// TODO: Add schema validation for all connector tool inputs
+// TODO: Implement connector-specific rate limiting
+// TODO: Add response transformation for consistent format across connectors
 export const connectorTools = [
   {
+    // TODO: Add support for issue templates
+    // TODO: Add attachment support for findings/evidence
     name: 'linear_create_issue',
     description: 'Create a new issue in Linear for tracking security findings or assessment tasks',
     inputSchema: {
@@ -1892,7 +1908,15 @@ async function handleGithubCreateFile(args: Record<string, unknown>): Promise<To
   }
 }
 
+// TODO: Add request/response logging for all connector operations
+// TODO: Implement unified error handling across all connectors
+// TODO: Add performance monitoring for connector operations
+// TODO: Implement connection pooling and reuse
+// TODO: Add bulk operations batching for efficiency
 export async function handleConnectorTool(name: string, args: Record<string, unknown>): Promise<ToolResponse | null> {
+  // TODO: Add input validation before routing to handlers
+  // TODO: Add metrics collection for tool usage
+  // TODO: Implement tool execution timeout
   switch (name) {
     case 'linear_create_issue':
       return handleLinearCreateIssue(args);

@@ -1,12 +1,29 @@
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 
+// TODO: Add caching layer for API responses to reduce external calls
+// TODO: Implement rate limiting per integration to avoid hitting API limits
+// TODO: Add retry logic with exponential backoff for failed API calls
+// TODO: Implement circuit breaker pattern for failing external services
+// TODO: Add integration health monitoring and alerting
+// TODO: Support multiple API key rotation for high-volume usage
+// TODO: Add request/response logging for debugging
+// TODO: Implement webhook support for real-time threat intelligence updates
+// TODO: Add more threat intelligence integrations (Shodan, Censys, SecurityTrails)
+// TODO: Add SIEM integrations (Splunk, ELK, QRadar)
+// TODO: Add ticketing system integrations (ServiceNow, Jira Service Desk)
+
 interface ToolResponse {
   content: Array<{ type: string; text: string }>;
 }
 
+// TODO: Add integration for CVE database (NIST NVD)
+// TODO: Add integration for exploit databases (Exploit-DB, Metasploit)
+// TODO: Add integration for threat actor tracking services
 export const integrationTools = [
   {
+    // TODO: Add batch hash lookup capability
+    // TODO: Cache results to avoid duplicate API calls
     name: 'virustotal_scan_hash',
     description: 'Look up a file hash (MD5, SHA1, SHA256) on VirusTotal for malware analysis',
     inputSchema: {
@@ -397,12 +414,18 @@ export const integrationTools = [
   },
 ];
 
+// TODO: Implement request caching with TTL to reduce API calls
+// TODO: Add request throttling to respect API rate limits
+// TODO: Implement request queue for high-volume scenarios
 async function virusTotalRequest(endpoint: string): Promise<unknown> {
   const apiKey = process.env.VIRUSTOTAL_API_KEY;
   if (!apiKey) {
     throw new Error('VIRUSTOTAL_API_KEY not configured. Please add it to your secrets.');
   }
 
+  // TODO: Add retry logic with exponential backoff
+  // TODO: Add request timeout configuration
+  // TODO: Log API usage metrics
   const response = await fetch(`https://www.virustotal.com/api/v3/${endpoint}`, {
     headers: {
       'x-apikey': apiKey,
@@ -411,18 +434,24 @@ async function virusTotalRequest(endpoint: string): Promise<unknown> {
 
   if (!response.ok) {
     const error = await response.text();
+    // TODO: Handle specific error codes (rate limit, invalid key, etc.)
+    // TODO: Implement circuit breaker for repeated failures
     throw new Error(`VirusTotal API error: ${response.status} - ${error}`);
   }
 
   return response.json();
 }
 
+// TODO: Add batch request support for multiple indicators
+// TODO: Implement response caching
 async function otxRequest(endpoint: string): Promise<unknown> {
   const apiKey = process.env.OTX_API_KEY;
   if (!apiKey) {
     throw new Error('OTX_API_KEY not configured. Please add it to your secrets.');
   }
 
+  // TODO: Add retry logic
+  // TODO: Add rate limiting awareness
   const response = await fetch(`https://otx.alienvault.com/api/v1/${endpoint}`, {
     headers: {
       'X-OTX-API-KEY': apiKey,
@@ -431,12 +460,14 @@ async function otxRequest(endpoint: string): Promise<unknown> {
 
   if (!response.ok) {
     const error = await response.text();
+    // TODO: Better error handling for specific OTX error codes
     throw new Error(`AlienVault OTX API error: ${response.status} - ${error}`);
   }
 
   return response.json();
 }
 
+// TODO: Add more specific error messages for common scenarios
 const HACKERONE_ERROR_MESSAGES: Record<number, string> = {
   400: 'Bad Request - Request does not conform with the specification',
   401: 'Unauthorized - Invalid API credentials. Ensure HACKERONE_API_KEY is in format username:token',
@@ -449,6 +480,9 @@ const HACKERONE_ERROR_MESSAGES: Record<number, string> = {
   503: 'Service Unavailable - Check status at hackeronestatus.com',
 };
 
+// TODO: Implement automatic retry on rate limit with delay
+// TODO: Add request/response logging for debugging
+// TODO: Support pagination for list endpoints
 async function hackerOneRequest(endpoint: string): Promise<unknown> {
   const apiKey = process.env.HACKERONE_API_KEY;
 
@@ -458,6 +492,8 @@ async function hackerOneRequest(endpoint: string): Promise<unknown> {
 
   const auth = Buffer.from(apiKey).toString('base64');
   
+  // TODO: Add request timeout
+  // TODO: Add retry logic for transient failures
   const response = await fetch(`https://api.hackerone.com/v1/${endpoint}`, {
     headers: {
       'Authorization': `Basic ${auth}`,
@@ -468,12 +504,17 @@ async function hackerOneRequest(endpoint: string): Promise<unknown> {
   if (!response.ok) {
     const errorMessage = HACKERONE_ERROR_MESSAGES[response.status] || `Unknown error`;
     const errorBody = await response.text();
+    // TODO: Implement exponential backoff for 429 rate limit errors
+    // TODO: Log errors to monitoring system
     throw new Error(`HackerOne API error (${response.status}): ${errorMessage}. Details: ${errorBody}`);
   }
 
   return response.json();
 }
 
+// TODO: Add input validation for all integration tools
+// TODO: Add response transformation/normalization
+// TODO: Implement parallel requests for batch operations
 export function handleIntegrationTool(name: string, args: Record<string, unknown>): ToolResponse | null {
   switch (name) {
     case 'virustotal_scan_hash': {

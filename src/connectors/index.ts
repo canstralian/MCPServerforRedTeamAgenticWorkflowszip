@@ -3,14 +3,26 @@ import { LinearClient } from '@linear/sdk';
 import { Client } from '@notionhq/client';
 import { Octokit } from '@octokit/rest';
 
+// TODO: Implement connection retry logic with exponential backoff
+// TODO: Add connection timeout configuration
+// TODO: Implement connection health checks
+// TODO: Add connection metrics and monitoring
+// TODO: Support multiple authentication methods (OAuth, API keys, tokens)
+// TODO: Implement secure credential storage with encryption
+// TODO: Add connection pooling for better performance
+
 interface CachedConnection {
   settings: Record<string, unknown>;
   fetchedAt: number;
 }
 
+// TODO: Implement Redis-based cache for distributed deployments
+// TODO: Add cache invalidation strategies
 const connectionCache: Map<string, CachedConnection> = new Map();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 5 * 60 * 1000; // TODO: Make configurable
 
+// TODO: Add better error handling for missing environment variables
+// TODO: Support multiple deployment platforms beyond Replit
 function getXReplitToken(): string {
   const token = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
