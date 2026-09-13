@@ -13,13 +13,13 @@
   },
   "dependencies": {
     "@linear/sdk": "^68.1.0",
-    "@modelcontextprotocol/sdk": "^1.25.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@notionhq/client": "^5.6.0",
     "@octokit/rest": "^22.0.1",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
+    "express": "^5.2.1",
     "googleapis": "^169.0.0",
-    "uuid": "^9.0.1",
+    "uuid": "^14.0.0",
     "winston": "^3.11.0",
     "zod": "^3.22.4"
   },
